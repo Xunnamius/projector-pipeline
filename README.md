@@ -1,2 +1,2 @@
-# actions-release
+# actions-release-automerge
 [WIP]
