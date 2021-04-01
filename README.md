@@ -43,10 +43,10 @@ with:
 
 #### Inputs
 
-| Name     | Type     | Default                                                                                                                                                                      | Description |
-| :------- | :------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------- |
-| `todo-a` | _string_ | **[REQUIRED]** Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document |             |
-| `todo-b` | _number_ | Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document                |             |
+| Name     | Type     | Default | Description                                                                                                                                                                  |
+| :------- | :------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `todo-a` | _string_ |         | **[REQUIRED]** Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document |
+| `todo-b` | _number_ |         | Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document                |
 
 #### Outputs
 
