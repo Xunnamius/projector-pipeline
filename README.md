@@ -27,13 +27,13 @@ workflow.
 
 The Projector CI/CD pipeline is comprised of the following components:
 
-### Components #1
+### Component #1
 
-## Usage: Actions
+## Usage: GitHub Actions
 
 Each component is directly invocable through a unified Actions interface.
 
-### Components #1
+### Component #1
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
