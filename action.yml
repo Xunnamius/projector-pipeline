@@ -1,25 +1,121 @@
 # https://help.github.com/en/articles/metadata-syntax-for-github-actions
 
-name: release-automerge
+name: projector-pipeline
 author: Xunnamius
 description: >
-  GitHub Action and importable library that either 1) deploys to production via
-  semantic-release or 2) automatically merges changes introduced via PR
+  A collection of libraries powering the CI/CD pipeline used in various
+  Projector templates
 
 # https://haya14busa.github.io/github-action-brandings
 branding:
   color: purple
-  icon: package
+  icon: cpu
 
-# inputs:
-#   todo:
-#     description: todo
-#     default: todo
-#     required: true
+inputs:
+  action:
+    description:
+      '[string] The name of the pipeline action to invoke. Can be one of:
+      `collect-metadata`, `download-metadata`, `audit`, `build`, `lint`,
+      `test-unit`, `test-integration-node`, `test-integration-externals`,
+      `test-integration-client`, `test-integration-webpack`, `cleanup-npm`,
+      `release-automerge`, `verify-npm`'
+    required: true
 
-# outputs:
-#   todo:
-#     description: todo
+outputs:
+  should-skip-ci:
+    description:
+      "[string] `'true'` if the CI and CD pipeline stages should be skipped;
+      `'false'` or empty otherwise. See also: `ciSkipRegex` in
+      `pipeline.config.js`."
+  should-skip-cd:
+    description:
+      "[string] `'true'` if ONLY the CD pipeline stage should be skipped;
+      `'false'` or empty otherwise. Always `'true'` when `should-skip-ci` is
+      `'true'`. See also: `cdSkipRegex` in `pipeline.config.js`."
+  node-version:
+    description:
+      '[string] The default Node version to be used by each stage. See also:
+      `nodeCurrentVersion` in `pipeline.config.js`.'
+  node-matrix:
+    description:
+      '[json string] A matrix defining a range of Node versions to test against.
+      See also: `nodeTestVersions` and `nodeCurrentVersion` in
+      `pipeline.config.js`.'
+  webpack-matrix:
+    description:
+      '[json string] A matrix defining a range of Webpack versions to test
+      against. See also: `webpackTestVersions` in `pipeline.config.js`.'
+  current-branch:
+    description:
+      '[string] The branch that originally triggered the pipeline run.'
+  pr-number:
+    description:
+      "[number|string] The GitHub PR number corresponding to this pipeline run
+      or `'null'` (or empty) if this run was not triggered by a PR."
+  can-release:
+    description:
+      "[string] `'true'` if this run was not triggered by a PR, the repository
+      is in a whitelisted namespace/owner, and the GitHub user responsible for
+      triggering the pipeline also has permission to approve a release. See
+      `releaseRepoOwnerWhitelist` and `releaseActorWhitelist` in (global)
+      `pipeline.config.js`."
+  can-automerge:
+    description:
+      "[string] `'true'` if this run was triggered by a PR and the GitHub actor
+      responsible has explicit permission to merge PRs. See also:
+      `automergeCanRetry` and `automergeActorWhitelist` in (global)
+      `pipeline.config.js`."
+  can-retry-automerge:
+    description:
+      "[string] `'true'` if automatic merges can be retried. See also:
+      `automergeCanRetry` in `pipeline.config.js`."
+  can-upload-coverage:
+    description:
+      "[string] `'true'` if the pipeline should attempt to upload coverage data
+      at some point. See also: `uploadCodeCoverage` in `pipeline.config.js`."
+  has-deploy:
+    description:
+      "[string] `'true'` if a *deploy* script exists in the root `package.json`
+      file."
+  has-release-config:
+    description:
+      "[string] `'true'` if a `release-config.js` file exists in the repo root`."
+  has-docs:
+    description:
+      "[string] `'true'` if a *build-docs* script exists in the root
+      `package.json` file."
+  has-externals:
+    description:
+      "[string] `'true'` if a *build-externals* script exists in the root
+      `package.json` file."
+  has-integration-node:
+    description:
+      "[string] `'true'` if a *test-integration-node* script exists in the root
+      `package.json` file."
+  has-integration-externals:
+    description:
+      "[string] `'true'` if a *test-integration-externals* script exists in the
+      root `package.json` file."
+  has-integration-client:
+    description:
+      "[string] `'true'` if a *test-integration-client* script exists in the
+      root `package.json` file."
+  has-integration-webpack:
+    description:
+      "[string] `'true'` if a *test-integration-webpack* script exists in the
+      root `package.json` file."
+  debug-string:
+    description:
+      '[string] A non-empty string if the pipeline is running in debugging mode.
+      See also: `debug-string` in (local) `pipeline.config.js`.'
+  committer-name:
+    description:
+      '[string] The name used by git during the CD stage. See also: `committer`
+      in `pipeline.config.js`.'
+  committer-email:
+    description:
+      '[string] The email used by git during the CD stage. See also: `committer`
+      in `pipeline.config.js`.'
 
 runs:
   using: node12

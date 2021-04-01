@@ -1,0 +1,5 @@
+*
+!.gitignore
+!privileged/
+!action.js
+!pipeline.config.js
