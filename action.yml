@@ -1,0 +1,25 @@
+# https://help.github.com/en/articles/metadata-syntax-for-github-actions
+
+name: release-automerge
+author: Xunnamius
+description: >
+  GitHub Action and importable library that either 1) deploys to production via semantic-release or 2) automatically merges changes introduced via PR
+
+# https://haya14busa.github.io/github-action-brandings
+branding:
+  color: purple
+  icon: send
+
+inputs:
+  todo:
+    description: todo
+    default: todo
+    required: true
+
+outputs:
+  todo:
+    description: todo
+
+runs:
+  using: node12
+  main: dist/action.js
