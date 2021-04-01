@@ -3,22 +3,23 @@
 name: release-automerge
 author: Xunnamius
 description: >
-  GitHub Action and importable library that either 1) deploys to production via semantic-release or 2) automatically merges changes introduced via PR
+  GitHub Action and importable library that either 1) deploys to production via
+  semantic-release or 2) automatically merges changes introduced via PR
 
 # https://haya14busa.github.io/github-action-brandings
 branding:
   color: purple
-  icon: send
+  icon: package
 
-inputs:
-  todo:
-    description: todo
-    default: todo
-    required: true
+# inputs:
+#   todo:
+#     description: todo
+#     default: todo
+#     required: true
 
-outputs:
-  todo:
-    description: todo
+# outputs:
+#   todo:
+#     description: todo
 
 runs:
   using: node12
