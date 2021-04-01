@@ -20,8 +20,7 @@
 
 The collection of components that comprise the CI/CD pipeline used by the
 various [Projector][2] templates and other projects. These components can be
-imported as libraries via Node or invoked directly via a GitHub Action in a
-workflow.
+imported as libraries via Node or invoked directly via a GitHub Action workflow.
 
 ## Components
 
