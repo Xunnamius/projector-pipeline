@@ -1,0 +1,32 @@
+{
+  "name": "__not-installable__-privileged-sandbox",
+  "description": "This package.json file is downloaded and used to install privileged npm dependencies for use by the release-automerge action",
+  "private": true,
+  "dependencies": {
+    "@semantic-release/changelog": "5.x",
+    "@semantic-release/exec": "5.x",
+    "@semantic-release/git": "9.x",
+    "conventional-changelog-angular": "5.x",
+    "conventional-changelog-cli": "2.x",
+    "debug": "4.x",
+    "escape-string-regexp": "4.x",
+    "execa": "5.x",
+    "prettier": "2.x",
+    "remark-cli": "9.x",
+    "remark-frontmatter": "3.x",
+    "remark-gfm": "1.x",
+    "remark-lint-final-newline": "1.x",
+    "remark-lint-hard-break-spaces": "2.x",
+    "remark-lint-no-auto-link-without-protocol": "2.x",
+    "remark-lint-no-blockquote-without-marker": "4.x",
+    "remark-lint-no-duplicate-definitions": "2.x",
+    "remark-lint-no-heading-content-indent": "3.x",
+    "remark-lint-no-inline-padding": "3.x",
+    "remark-lint-no-undefined-references": "3.x",
+    "remark-lint-no-unused-definitions": "2.x",
+    "remark-lint-ordered-list-marker-style": "2.x",
+    "remark-reference-links": "5.x",
+    "semantic-release": "Xunnamius/semantic-release",
+    "semver": "7.x"
+  }
+}
