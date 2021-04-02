@@ -18,7 +18,7 @@
 
 # projector-pipeline
 
-This project contains the collection of component actions that power the CI/CD
+This project contains the collection of component actions powering the CI/CD
 pipeline that undergirds [Projector][2]-based projects. For more details on the
 pipeline's design, such as managing per-repository and cross-repository pipeline
 configurations, see [ARCHITECTURE.md][architecture].
@@ -55,8 +55,7 @@ _Unprivileged_. Audits a project for security vulnerabilities. Currently, all au
 is handled by `npm audit`.
 
 **`build`**\
-_Unprivileged_. Builds a project's distributables via `npm run build`. Currently
-all auditing is handled by `npm audit`. This component action expects coverage data
+_Unprivileged_. Builds a project's distributables via `npm run build`. This component action expects coverage data
 to be available in the cache at runtime. Hence, this component action must always
 run _after_ `test-unit`.
 
