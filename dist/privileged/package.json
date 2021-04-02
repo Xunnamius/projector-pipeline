@@ -1,7 +1,7 @@
 {
   "name": "__not-installable__-privileged-sandbox",
   "private": true,
-  "description": "This package.json file is downloaded and used to install privileged npm dependencies for use by the release-automerge action",
+  "description": "This package.json file is downloaded and used to install privileged npm dependencies for the release-automerge component action of the @xunnamius/projector-pipeline package. Additionally, these dependencies are purposely locked to specific versions to mitigate supply chain attacks",
   "dependencies": {
     "@semantic-release/changelog": "5.0.1",
     "@semantic-release/exec": "5.0.0",
