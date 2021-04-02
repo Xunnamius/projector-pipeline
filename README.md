@@ -199,8 +199,8 @@ This component action uses cached `~/npm` data if available and uploads the
 collected metadata as an artifact. It is usually not necessary to invoke this
 component action manually in workflows that invoke other component actions; this
 is because the other actions invoke this action internally. However, it _is_
-necessary to invoke this action in flows that eventually invoke the
-`metadata-download` component action, as is the case with `projector-pipeline`.
+necessary to invoke this action manually when running workflows that invoke the
+`metadata-download` component action.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -255,11 +255,10 @@ See [action.yml][24] for possible outputs of this component action.
 > _PRIVILEGED ACTION_
 
 This component action uses cached `~/npm` data if available and requires both
-metadata and build artifacts, the former uploaded by `metadata-collect` and the
-latter by `build`, to be available. This action will fail if these artifacts are
-not available.
+metadata and build artifacts to be available, the former uploaded by `metadata-collect` and the
+latter by `build`.
 
-This artifact also downloads a [remote `package.json` file][25] during
+This component action also downloads a [remote `package.json` file][25] during
 operation. This file is used to safely install NPM dependencies in privileged
 environments. The permanent URI for this download is:
 [https://github.com/xunnamius/projector-pipeline/blob/main/dist/privileged/package.json][26]
