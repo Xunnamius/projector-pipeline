@@ -252,11 +252,11 @@ push will almost certainly corrupt.
 **Revert Commits Are Always Released**
 
 [All reverts are treated as patches and immediately released][3] no matter the
-type of the reverted commit. This means **commits that were reverted will appear
-in [CHANGELOG.md][41] even if they didn't trigger an earlier release**. This
-also means **reverting a commit that introduced a breaking change will only
-trigger a patch release** unless the revert commit itself also includes
-`BREAKING CHANGE:` in its message body.
+type of the reverted commit. This means commits that were reverted will appear
+in [CHANGELOG.md][41] even if they didn't trigger an earlier release. This also
+means **reverting a commit that introduced a breaking change will only trigger a
+patch release** unless the revert commit itself also includes `BREAKING CHANGE:`
+in its message body.
 
 If a push includes only revert commits (and `BREAKING CHANGE:` or an alternative
 is not present in the top commit's message body), **the result is always a patch
