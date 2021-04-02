@@ -18,29 +18,140 @@
 
 # projector-pipeline
 
-The collection of components that comprise the CI/CD pipeline used by the
-various [Projector][2] templates and other projects. These components can be
-imported as libraries via Node or invoked directly via a GitHub Action workflow.
+This project contains the collection of component actions that power the CI/CD
+pipeline that undergirds [Projector][2]-based projects. For more details on the
+pipeline's design, such as managing per-repository and cross-repository pipeline
+configurations, see [ARCHITECTURE.md][architecture].
 
-## Components
+---
 
-The Projector CI/CD pipeline is comprised of the following components:
+- [Usage: GitHub Actions][3]
+  - [Audit Project][4]
+  - [Build Distributables][5]
+  - [Post-delete Cleanup][6]
+  - [Lint Source][7]
+  - [Collect Metadata][8]
+  - [Download Metadata][9]
+  - [Release/Auto-merge][10]
+  - [Client Integration Tests][11]
+  - [Externals Integration Tests][12]
+  - [Node Integration Tests][13]
+  - [Webpack Integration Tests][14]
+  - [Unit Tests][15]
+  - [Post-release Installation Verification][16]
+- [Usage: NPM][17]
+  - [Install][18]
+  - [Example][19]
+  - [Documentation][20]
+- [Contributing and Support][21]
 
-### Component #1
+---
+
+The following component actions can be imported as libraries via Node or invoked
+directly in your workflows:
+
+**`audit`**\
+_Unprivileged_. Audits a project for security vulnerabilities. Currently, all auditing
+is handled by `npm audit`.
+
+**`build`**\
+_Unprivileged_. Builds a project's distributables via `npm run build`. Currently
+all auditing is handled by `npm audit`. This component action expects coverage data
+to be available in the cache at runtime. Hence, this component action must always
+run _after_ `test-unit`.
+
+**`cleanup-npm`**\
+_Privileged_. Cleans up package metadata (e.g. pruning unused dist-tags) after branch
+deletion.
+
+**`lint`**\
+_Unprivileged_. Lints project source via `npm run lint`.
+
+**`metadata-collect`**\
+_Unprivileged_. Collects metadata from the environment and uploads it as an artifact.
+Must run only in unprivileged contexts.
+
+**`metadata-download`**\
+_Unprivileged_. Downloads metadata artifacts created by `metadata-collect`. Can be
+used in both privileged and unprivileged workflows.
+
+**`release-automerge`**\
+_Privileged_. Builds changelog (via `npm run build-changelog`) and runs semantic-release,
+potentially resulting in a new software version being released. If the pipeline was
+triggered by a PR, semantic-release will never run. Instead, the PR will be auto-merged
+if eligible (see `metadata-collect`).
+
+**`test-integration-client`**\
+_Unprivileged_. Runs all bespoke integration tests via `npm run test-integration-client`.
+
+**`test-integration-externals`**\
+_Unprivileged_. Runs all integration tests specific to project externals via `npm run test-integration-externals`.
+
+**`test-integration-node`**\
+_Unprivileged_. Runs all Node-specific integration tests via `npm run test-integration-node`.
+
+**`test-integration-webpack`**\
+_Unprivileged_. Runs all Webpack-specific integration tests via `npm run test-integration-webpack`.
+
+**`test-unit`**\
+_Unprivileged_. Runs all unit tests via `npm run test-unit` and caches coverage data
+for use by `build`. Hence, this component action must always run _before_ `build`.
+
+**`verify-npm`**\
+_Privileged_. Performs post-release package verification, e.g. ensure `npm install`
+and related scripts function without errors. This action is best invoked several
+minutes _after_ a release has occurred so that release channels have a chance to
+update their caches.
 
 ## Usage: GitHub Actions
 
-Each component is directly invocable through a unified Actions interface.
+Each component action is directly invocable through a unified Actions interface.
 
-### Component #1
+Component actions are either _privileged_, where they require repository secrets
+and GitHub write tokens (e.g. `workflow_run`), or _unprivileged_, where they
+**must not** have access to secrets or write tokens (e.g. `pull_request`). **It
+is a major security vulnerability to invoke unprivileged component actions on
+[untrusted code outside properly sandboxed workflows][22].**
+
+### Audit Project
+
+> **UNPRIVILEGED ACTION**
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
-  todo: TODO ME!
+  action: audit
 ```
 
-#### Inputs
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Build Distributables
+
+> _PRIVILEGED ACTION_
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: build
+  options: >
+    {
+      "": "",
+      "": ""
+    }
+```
+
+#### Options
+
+This action accepts an `options` JSON string input with the following properties
+and constraints:
 
 | Name     | Type     | Default | Description                                                                                                                                                                  |
 | :------- | :------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -54,9 +165,230 @@ with:
 | `todo-a` | _string_ | Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document |
 | `todo-b` | _number_ | Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document |
 
+### Post-delete Cleanup
+
+> _PRIVILEGED ACTION_
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: cleanup-npm
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Lint Source
+
+> **UNPRIVILEGED ACTION**
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: lint
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Collect Metadata
+
+> **UNPRIVILEGED ACTION**
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: collect-metadata
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Download Metadata
+
+> UNPRIVILEGED ACTION (but can be run in privileged workflows safely)
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: download-metadata
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Release/Auto-merge
+
+> _PRIVILEGED ACTION_
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: release-automerge
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Client Integration Tests
+
+> **UNPRIVILEGED ACTION**
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: test-integration-client
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Externals Integration Tests
+
+> **UNPRIVILEGED ACTION**
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: test-integration-externals
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Node Integration Tests
+
+> **UNPRIVILEGED ACTION**
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: test-integration-node
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Webpack Integration Tests
+
+> **UNPRIVILEGED ACTION**
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: test-integration-webpack
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Unit Tests
+
+> **UNPRIVILEGED ACTION**
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: test-unit
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
+### Post-release Installation Verification
+
+> **UNPRIVILEGED ACTION**
+
+This component action caches xyz, artifact rst
+
+```YML
+uses: xunnamius/projector-pipeline@v1.0.0
+with:
+  action: verify-npm
+```
+
+#### Options
+
+This component action does not recognize any options.
+
+#### Outputs
+
+This component action has no outputs.
+
 ## Usage: NPM
 
-Each component can also be imported and run locally via unified NPM package.
+Each component action can also be imported and run locally via unified NPM
+package.
 
 ### Install
 
@@ -107,15 +439,16 @@ package.
 ### Example
 
 ```typescript
-import { componentOne } from '@xunnamius/projector-pipeline';
+import { invokeAction } from '@xunnamius/projector-pipeline';
 
-// TODO: XXX: finish me!
+const result = await invokeAction('audit');
 ```
 
-### Documentation
+## Documentation
 
 Further documentation for using the NPM package can be found under
-[`docs/`][docs].
+[`docs/`][docs]. See [ARCHITECTURE.md][architecture] and
+[CONTRIBUTING.md][contributing] for more details on the pipeline.
 
 ## Contributing and Support
 
@@ -166,6 +499,7 @@ information.
   https://github.com/Xunnamius/projector-pipeline/issues/new/choose
 [pr-compare]: https://github.com/Xunnamius/projector-pipeline/compare
 [contributing]: CONTRIBUTING.md
+[architecture]: ARCHITECTURE.md
 [support]: .github/SUPPORT.md
 [cjs2]: https://webpack.js.org/configuration/output/#module-definition-systems
 [dual-module]:
@@ -185,3 +519,24 @@ information.
 [1]:
   https://github.blog/2020-10-13-presenting-v7-0-0-of-the-npm-cli/#user-content-breaking-changes
 [2]: https://github.com/Xunnamius/projector
+[3]: #usage-github-actions
+[4]: #audit-project
+[5]: #build-distributables
+[6]: #post-delete-cleanup
+[7]: #lint-source
+[8]: #collect-metadata
+[9]: #download-metadata
+[10]: #releaseauto-merge
+[11]: #client-integration-tests
+[12]: #externals-integration-tests
+[13]: #node-integration-tests
+[14]: #webpack-integration-tests
+[15]: #unit-tests
+[16]: #post-release-installation-verification
+[17]: #usage-npm
+[18]: #install
+[19]: #example
+[20]: #documentation
+[21]: #contributing-and-support
+[22]:
+  https://securitylab.github.com/research/github-actions-preventing-pwn-requests
