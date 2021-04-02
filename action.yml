@@ -4,7 +4,7 @@ name: projector-pipeline
 author: Xunnamius
 description: >
   A collection of libraries powering the CI/CD pipeline used in various
-  Projector templates
+  Projector-based projects
 
 # https://haya14busa.github.io/github-action-brandings
 branding:
@@ -15,10 +15,10 @@ inputs:
   action:
     description:
       '[string] The name of the pipeline action to invoke. Can be one of:
-      `collect-metadata`, `download-metadata`, `audit`, `build`, `lint`,
-      `test-unit`, `test-integration-node`, `test-integration-externals`,
-      `test-integration-client`, `test-integration-webpack`, `cleanup-npm`,
-      `release-automerge`, `verify-npm`'
+      `audit`, `build`, `cleanup-npm`, `lint`, `metadata-collect`,
+      `metadata-download`, `release-automerge`, `test-integration-client`,
+      `test-integration-externals`, `test-integration-node`,
+      `test-integration-webpack`, `test-unit`, or `verify-npm`'
     required: true
 
 outputs:
