@@ -135,8 +135,8 @@ This component action has no outputs.
 
 > _PRIVILEGED ACTION_
 
-This component action uses cached `~/npm` and `./coverage` and data if available
-and uploads the working tree as an artifact.
+This component action uses cached `~/npm` and `./coverage` data if available and
+uploads the working tree as an artifact.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -255,9 +255,10 @@ See [action.yml][24] for possible outputs of this component action.
 
 > _PRIVILEGED ACTION_
 
-This component action uses cached `~/npm` data if available and requires a
-metadata artifact uploaded by `metadata-collect` to be available. This action
-will fail if no metadata artifact is available.
+This component action uses cached `~/npm` data if available and requires both
+metadata and build artifacts, the former uploaded by `metadata-collect` and the
+latter by `build`, to be available. This action will fail if these artifacts are
+not available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
