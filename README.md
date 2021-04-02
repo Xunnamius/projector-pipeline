@@ -448,9 +448,13 @@ package.
 ### Example
 
 ```typescript
-import { invokeAction } from '@xunnamius/projector-pipeline';
+import { invokeComponentAction } from '@xunnamius/projector-pipeline';
 
-const result = await invokeAction('audit');
+const result = await invokeComponentAction('metadata-collect', {
+  'upload-artifact': false // Note: `false` is the default already
+});
+
+console.log(result.outputs['should-skip-ci']); // Prints a boolean
 ```
 
 ## Documentation
