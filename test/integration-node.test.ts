@@ -31,7 +31,7 @@ const withMockedFixture = mockFixtureFactory(TEST_IDENTIFIER, fixtureOptions);
 const runTest = async ({ esm }: { esm: boolean }) => {
   const indexPath = `src/index.${esm ? 'm' : ''}js`;
 
-  // TODO: update file below to output "working" only with success condition
+  // TODO: update file below to output "working" only with success condition (includes both index AND action!)
   fixtureOptions.initialFileContents[indexPath] =
     (esm
       ? `import { sum, diff, mult, div } from '${pkgName}';`

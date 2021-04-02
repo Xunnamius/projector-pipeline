@@ -43,7 +43,7 @@ const runTest = async ({ source, dest }: { source: SourceType; dest: DestType })
   const ext = `${source == SourceType.ESM ? 'm' : ''}js`;
   const indexPath = `src/index.${ext}`;
 
-  // TODO: update file below to output "working" only with success condition
+  // TODO: update file below to output "working" only with success condition (only for index)
   fixtureOptions.initialFileContents[indexPath] =
     (source == SourceType.ESM
       ? `import { sum, diff, mult, div } from '${pkgName}';`
