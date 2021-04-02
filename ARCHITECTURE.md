@@ -228,7 +228,7 @@ The pipeline recognizes two configurations files:
 
 - **Global default configuration** is downloaded at the start of every
   `projector-pipeline` run _across all projects and repositories_ from the
-  following URI:
+  following permanent URI:
   [https://github.com/xunnamius/projector-pipeline/blob/main/dist/pipeline.config.js][20]
 
 - **Local configuration** is sourced from `.github/pipeline.config.js`, if it

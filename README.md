@@ -260,6 +260,11 @@ metadata and build artifacts, the former uploaded by `metadata-collect` and the
 latter by `build`, to be available. This action will fail if these artifacts are
 not available.
 
+This artifact also downloads a [remote `package.json` file][25] during
+operation. This file is used to safely install NPM dependencies in privileged
+environments. The permanent URI for this download is:
+[https://github.com/xunnamius/projector-pipeline/blob/main/dist/privileged/package.json][26]
+
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
@@ -555,3 +560,6 @@ information.
   https://securitylab.github.com/research/github-actions-preventing-pwn-requests
 [23]: ARCHITECTURE.md#configuring-the-pipeline
 [24]: action.yml
+[25]: dist/privileged/package.json
+[26]:
+  https://github.com/xunnamius/projector-pipeline/blob/main/dist/privileged/package.json
