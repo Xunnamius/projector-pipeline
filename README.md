@@ -532,8 +532,8 @@ information.
 [5]: #build-distributables
 [6]: #post-delete-cleanup
 [7]: #lint-source
-[8]: #metadata-collect
-[9]: #metadata-download
+[8]: #collect-metadata
+[9]: #download-metadata
 [10]: #releaseauto-merge
 [11]: #client-integration-tests
 [12]: #externals-integration-tests
