@@ -14,12 +14,17 @@ branding:
 inputs:
   action:
     description:
-      '[string] The name of the pipeline action to invoke. Can be one of:
+      '[string] The name of the component action to invoke. Can be one of:
       `audit`, `build`, `cleanup-npm`, `lint`, `metadata-collect`,
       `metadata-download`, `release-automerge`, `test-integration-client`,
       `test-integration-externals`, `test-integration-node`,
       `test-integration-webpack`, `test-unit`, or `verify-npm`'
     required: true
+  options:
+    description:
+      '[json string] A serialized object containing configuration options for
+      the component action'
+    required: false
 
 outputs:
   should-skip-ci:
