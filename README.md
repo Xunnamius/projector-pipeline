@@ -135,41 +135,28 @@ This component action has no outputs.
 
 > _PRIVILEGED ACTION_
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` and `./coverage` and data if available
+and uploads the working tree as an artifact.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
   action: build
-  options: >
-    {
-      "": "",
-      "": ""
-    }
 ```
 
 #### Options
 
-This action accepts an `options` JSON string input with the following properties
-and constraints:
-
-| Name     | Type     | Default | Description                                                                                                                                                                  |
-| :------- | :------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `todo-a` | _string_ |         | **[REQUIRED]** Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document |
-| `todo-b` | _number_ |         | Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document                |
+This component action does not recognize any options.
 
 #### Outputs
 
-| Name     | Type     | Description                                                                                                                                                   |
-| :------- | :------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `todo-a` | _string_ | Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document |
-| `todo-b` | _number_ | Long description text goes here and it is long it could be several sentences actually and it should still look pretty good in the resulting markdown document |
+This component action has no outputs.
 
 ### Post-delete Cleanup
 
 > _PRIVILEGED ACTION_
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -189,7 +176,7 @@ This component action has no outputs.
 
 > **UNPRIVILEGED ACTION**
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -209,32 +196,51 @@ This component action has no outputs.
 
 > **UNPRIVILEGED ACTION**
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available and uploads the
+collected metadata as an artifact. It is usually not necessary to invoke this
+component action manually in workflows that invoke other component actions; this
+is because the other actions invoke this action internally. However, it _is_
+necessary to invoke this action in flows that eventually invoke the
+`metadata-download` action, as is the case with `projector-pipeline`.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
-  action: collect-metadata
+  action: metadata-collect
+  options: >
+    {
+      "upload-artifact": true
+    }
 ```
 
 #### Options
 
-This component action does not recognize any options.
+This action accepts an `options` JSON string input with the following properties
+and constraints:
+
+| Name              | Type      | Default | Description                                                                                                                                                        |
+| :---------------- | :-------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `upload-artifact` | _boolean_ | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action. |
+
+See also: [configuring the pipeline][23].
 
 #### Outputs
 
-This component action has no outputs.
+See [action.yml][24] for possible outputs of this component action.
 
 ### Download Metadata
 
 > UNPRIVILEGED ACTION (but can be run in privileged workflows safely)
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available and can download
+collected metadata artifacts. It is usually not necessary to invoke this
+component action manually in workflows that invoke other component actions; this
+is because the other actions invoke this action internally.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
-  action: download-metadata
+  action: metadata-download
 ```
 
 #### Options
@@ -243,13 +249,15 @@ This component action does not recognize any options.
 
 #### Outputs
 
-This component action has no outputs.
+See [action.yml][24] for possible outputs of this component action.
 
 ### Release/Auto-merge
 
 > _PRIVILEGED ACTION_
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available and requires a
+metadata artifact uploaded by `metadata-collect` to be available. This action
+will fail if no metadata artifact is available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -269,7 +277,7 @@ This component action has no outputs.
 
 > **UNPRIVILEGED ACTION**
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -289,7 +297,7 @@ This component action has no outputs.
 
 > **UNPRIVILEGED ACTION**
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -309,7 +317,7 @@ This component action has no outputs.
 
 > **UNPRIVILEGED ACTION**
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -329,7 +337,7 @@ This component action has no outputs.
 
 > **UNPRIVILEGED ACTION**
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -349,7 +357,7 @@ This component action has no outputs.
 
 > **UNPRIVILEGED ACTION**
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -369,7 +377,7 @@ This component action has no outputs.
 
 > **UNPRIVILEGED ACTION**
 
-This component action caches xyz, artifact rst
+This component action uses cached `~/npm` data if available.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
@@ -524,8 +532,8 @@ information.
 [5]: #build-distributables
 [6]: #post-delete-cleanup
 [7]: #lint-source
-[8]: #collect-metadata
-[9]: #download-metadata
+[8]: #metadata-collect
+[9]: #metadata-download
 [10]: #releaseauto-merge
 [11]: #client-integration-tests
 [12]: #externals-integration-tests
@@ -540,3 +548,5 @@ information.
 [21]: #contributing-and-support
 [22]:
   https://securitylab.github.com/research/github-actions-preventing-pwn-requests
+[23]: ARCHITECTURE.md#configuring-the-pipeline
+[24]: action.yml
