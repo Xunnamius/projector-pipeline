@@ -201,7 +201,7 @@ collected metadata as an artifact. It is usually not necessary to invoke this
 component action manually in workflows that invoke other component actions; this
 is because the other actions invoke this action internally. However, it _is_
 necessary to invoke this action in flows that eventually invoke the
-`metadata-download` action, as is the case with `projector-pipeline`.
+`metadata-download` component action, as is the case with `projector-pipeline`.
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
