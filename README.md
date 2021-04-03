@@ -208,7 +208,8 @@ with:
   action: metadata-collect
   options: >
     {
-      "upload-artifact": true
+      "upload-artifact": true,
+      "checkout-commit": true
     }
 ```
 
@@ -220,6 +221,7 @@ and constraints:
 | Name              | Type      | Default | Description                                                                                                                                                        |
 | :---------------- | :-------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `upload-artifact` | _boolean_ | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action. |
+| `checkout-commit` | _boolean_ | `true`  | If `true`, the triggering commit will be checked out into the current working directory as if by `@actions/checkout`                                               |
 
 See also: [configuring the pipeline][23].
 
@@ -240,11 +242,22 @@ is because the other actions invoke this action internally.
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
   action: metadata-download
+  options: >
+    {
+      "checkout-commit": false
+    }
 ```
 
 #### Options
 
-This component action does not recognize any options.
+This action accepts an `options` JSON string input with the following properties
+and constraints:
+
+| Name              | Type      | Default | Description                                                                                                          |
+| :---------------- | :-------- | :------ | :------------------------------------------------------------------------------------------------------------------- |
+| `checkout-commit` | _boolean_ | `true`  | If `true`, the triggering commit will be checked out into the current working directory as if by `@actions/checkout` |
+
+See also: [configuring the pipeline][23].
 
 #### Outputs
 
