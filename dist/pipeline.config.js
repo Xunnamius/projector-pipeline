@@ -3,31 +3,29 @@
  * comprise the build-test-deploy pipeline. Each property is required.
  */
 module.exports = {
-  // * The name and email used to author commits and interact with GitHub
-  // ! This should correspond to the identity associated with the GH_TOKEN secret
+  // * The name and email used to author commits and interact with GitHub.
+  // ! This should correspond to the identity associated w/ the GH_TOKEN secret.
   committer: {
     name: 'xunn-bot',
     email: 'bot@xunn.io'
   },
 
-  // * The version of node to load into each job. Must NOT be quoted!
-  nodeCurrentVersion: ['15.x'],
+  // * The version of node to load into each job.
+  nodeCurrentVersion: '15.x',
 
-  // * Node versions to test against (NODE_CURRENT_VERSION included
-  // * automatically). Must be quoted!
+  // * Node versions to test against.
   nodeTestVersions: ['12.x', '14.x'],
 
-  // * Webpack versions to test against. Must be quoted!
+  // * Webpack versions to test against.
   webpackTestVersions: ['5.x'],
 
-  // * Regular expressions (w/ proper escaping) for skipping CI/CD
-  // ! These also have to be updated in .changelogrc.js and cleanup.yml
-  ciSkipRegex: '\\[skip ci\\]|\\[ci skip\\]',
-  cdSkipRegex: '\\[skip cd\\]|\\[cd skip\\]',
+  // * Regular expressions (w/ proper escaping) for skipping CI/CD.
+  ciSkipRegex: /\[skip ci\]|\[ci skip\]/i,
+  cdSkipRegex: /\[skip cd\]|\[cd skip\]/i,
 
   // * A list of GitHub `github.repository_owner` where automated releases may
   // * occur. Unless running within one of the listed namespaces, workflows will
-  // * not complete in forks.
+  // * not be allowed to run.
   // ? Repository owner name comparisons are case insensitive.
   releaseRepoOwnerWhitelist: ['xunnamius', 'ergodark', 'nhscc'],
 
@@ -48,15 +46,17 @@ module.exports = {
   // * Should auto-merge be retried on failure even when the PR appears
   // * unmergeable? Uses exponential back-off internally.
   // ! WARNING: setting this to true might waste Actions minutes and $$$!
-  automergeCanRetry: true,
+  canRetryAutomerge: true,
 
-  // * NPM audit will fail upon encountering problems of at least this severity
+  // * NPM audit will fail upon encountering problems of at least the specified
+  // * severity.
   npmAuditFailLevel: 'high',
 
-  // * Attempt to upload project coverage data to codecov
-  uploadCodeCoverage: true,
+  // * Attempt to upload project coverage data to codecov if `true`.
+  canUploadCoverage: true,
 
-  // * How many days GitHub should keep uploaded artifacts around (90 is
-  // * GitHub's default)
+  // * How many days GitHub should keep uploaded artifacts around.
+  // ! 90 days is GitHub's default, but this should be dramatically lowered for
+  // ! private repos where artifact storage costs $$$.
   artifactRetentionDays: 90
 };
