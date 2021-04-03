@@ -1,34 +1,62 @@
-import { sum, diff, mult, div } from '../src/index';
+import { ComponentAction, invokeComponentAction, componentActions } from '../src/index';
+import { asMockedFunction } from './setup';
+import execa from 'execa';
 
-describe('::sum', () => {
-  it('sums as expected', async () => {
-    expect.hasAssertions();
-    expect(sum(2, 2)).toBe(4);
-  });
+jest.mock('execa');
 
-  it('fails if this test should fail', async () => {
-    expect.hasAssertions();
-    expect(true).toBe(true);
-  });
+const mockedExeca = asMockedFunction(execa);
+
+beforeEach(() => {
+  // TODO: mock global config fetch
+  // TODO: add test-audit-level
 });
 
-describe('::diff', () => {
-  it('takes the difference as expected', async () => {
-    expect.hasAssertions();
-    expect(diff(2, 2)).toBe(0);
-  });
+afterEach(() => {
+  jest.clearAllMocks();
 });
 
-describe('::mult', () => {
-  it('multiplies as expected', async () => {
-    expect.hasAssertions();
-    expect(mult(2, 3)).toBe(6);
-  });
-});
+describe('::invokeComponentAction', () => {
+  describe('action: audit', () => {
+    it('succeeds if npm audit is successful', async () => {
+      expect.hasAssertions();
 
-describe('::div', () => {
-  it('divides as expected', async () => {
-    expect.hasAssertions();
-    expect(div({ dividend: 4, divisor: 2 })).toBe(2);
+      const spy = jest
+        .spyOn(componentActions, ComponentAction.MetadataCollect)
+        .mockReturnValueOnce(({
+          npmAuditFailLevel: 'test-audit-level'
+        } as unknown) as ReturnType<typeof componentActions[ComponentAction.MetadataCollect]>);
+
+      mockedExeca.mockReturnValueOnce(
+        (Promise.resolve() as unknown) as ReturnType<typeof mockedExeca>
+      );
+
+      await expect(invokeComponentAction(ComponentAction.Audit)).resolves.toStrictEqual({
+        action: ComponentAction.Audit,
+        options: {},
+        outputs: {}
+      });
+
+      expect(mockedExeca).toBeCalledWith(
+        'npm',
+        ['audit', '--audit-level=test-audit-level'],
+        {
+          stdio: 'inherit'
+        }
+      );
+
+      spy.mockRestore();
+    });
+
+    // it('fails if npm audit is unsuccessful', async () => {
+    //   expect.hasAssertions();
+    // });
+
+    // it('respects pipeline config', async () => {
+    //   expect.hasAssertions();
+    // });
+
+    // it('handles failure conditions gracefully', async () => {
+    //   expect.hasAssertions();
+    // });
   });
 });
