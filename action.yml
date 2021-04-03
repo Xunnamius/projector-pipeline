@@ -50,6 +50,10 @@ outputs:
     description:
       '[json string] A matrix defining a range of Webpack versions to test
       against. See also: `webpackTestVersions` in `pipeline.config.js`.'
+  commit-sha:
+    description:
+      '[string] The commit originally responsible for triggering the pipeline
+      run.'
   current-branch:
     description:
       '[string] The branch that originally triggered the pipeline run.'
