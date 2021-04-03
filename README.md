@@ -55,9 +55,9 @@ _Unprivileged_. Audits a project for security vulnerabilities. Currently, all au
 is handled by `npm audit`.
 
 **`build`**\
-_Unprivileged_. Builds a project's distributables via `npm run build`. This component action expects coverage data
-to be available in the cache at runtime. Hence, this component action must always
-run _after_ `test-unit`.
+_Unprivileged_. Builds a project's distributables via `npm run build`. This component
+action expects coverage data to be available in the cache at runtime. Hence, this
+component action must always run _after_ `test-unit`.
 
 **`cleanup-npm`**\
 _Privileged_. Cleans up package metadata (e.g. pruning unused dist-tags) after branch
@@ -221,7 +221,7 @@ and constraints:
 | Name              | Type      | Default | Description                                                                                                                                                        |
 | :---------------- | :-------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `upload-artifact` | _boolean_ | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action. |
-| `checkout-commit` | _boolean_ | `true`  | If `true`, the triggering commit will be checked out into the current working directory as if by `@actions/checkout`                                               |
+| `checkout-commit` | _boolean_ | `true`  | If `true`, the triggering commit will be checked out into the current working directory as if by `@actions/checkout`.                                              |
 
 See also: [configuring the pipeline][23].
 
@@ -268,8 +268,8 @@ See [action.yml][24] for possible outputs of this component action.
 > _PRIVILEGED ACTION_
 
 This component action uses cached `~/npm` data if available and requires both
-metadata and build artifacts to be available, the former uploaded by `metadata-collect` and the
-latter by `build`.
+metadata and build artifacts to be available, the former uploaded by
+`metadata-collect` and the latter by `build`.
 
 This component action also downloads a [remote `package.json` file][25] during
 operation. This file is used to safely install NPM dependencies in privileged
