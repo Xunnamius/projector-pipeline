@@ -680,5 +680,4 @@ information.
 [40]: #usage-npm-package
 [41]: https://github.com/actions/checkout
 [42]: https://github.com/actions/setup-node
-[43]:
-  https://github.com/Xunnamius/projector-pipeline/blob/main/types/global.d.ts
+[43]: https://github.com/Xunnamius/projector-pipeline/blob/main/types/global.ts
