@@ -6,7 +6,8 @@
   "keywords": [],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Xunnamius/projector-pipeline"
+    "url": "https://github.com/Xunnamius/projector-pipeline",
+    "lens": "cjs"
   },
   "license": "Unlicense",
   "author": "Xunnamius",
