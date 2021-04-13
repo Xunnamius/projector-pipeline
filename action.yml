@@ -16,7 +16,7 @@ inputs:
     description:
       '[string] The name of the component action to invoke. Can be one of:
       `audit`, `build`, `cleanup-npm`, `lint`, `metadata-collect`,
-      `metadata-download`, `release-automerge`, `test-integration-client`,
+      `metadata-download`, `smart-deploy`, `test-integration-client`,
       `test-integration-externals`, `test-integration-node`,
       `test-integration-webpack`, `test-unit`, or `verify-npm`'
     required: true
