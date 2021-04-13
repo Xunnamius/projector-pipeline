@@ -15,7 +15,9 @@ const {
   additionalReleaseRules
 } = require('./.changelogrc.js');
 
+// ? See: https://semantic-release.gitbook.io/semantic-release/usage/configuration#options
 module.exports = {
+  // ? For branches, it's important that each entry only have higher version numbers than the last, which is why maintenance branches appear first.
   branches: [
     '+([0-9])?(.{+([0-9]),x}).x',
     'main',
