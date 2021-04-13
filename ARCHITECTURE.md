@@ -192,11 +192,10 @@ message is parsed for commands.
 
 The following commands are recognized:
 
-| Command     | Alias(es)   | Description                                                           | Usage Example                                                                |
-| ----------- | ----------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `[skip cl]` | `[cl skip]` | Skip only local unit and integration tests. Linting is never skipped. | `git commit -m 'build: make a commit while tests are not passing [skip cl]'` |
-| `[skip ci]` | `[ci skip]` | Skip the entire pipeline (implies `[skip cd]`)                        | `git commit -m 'build: fix CI system [skip ci]'`                             |
-| `[skip cd]` | `[cd skip]` | Skip only the CD stage                                                | `git commit -m 'style: do-not-release-this [skip cd]'`                       |
+| Command     | Alias(es)   | Description                                    | Usage Example                                          |
+| ----------- | ----------- | ---------------------------------------------- | ------------------------------------------------------ |
+| `[skip ci]` | `[ci skip]` | Skip the entire pipeline (implies `[skip cd]`) | `git commit -m 'build: fix CI system [skip ci]'`       |
+| `[skip cd]` | `[cd skip]` | Skip only the CD stage                         | `git commit -m 'style: do-not-release-this [skip cd]'` |
 
 ## Pushing Commits And Merging PRs
 

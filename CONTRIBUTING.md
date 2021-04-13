@@ -188,4 +188,5 @@ which of the following scripts are available for this project.
 [24]:
   https://www.typescriptlang.org/docs/handbook/module-resolution.html#path-mapping
 [25]: tsconfig.json
-[26]: https://github.com/Xunnamius/projector-pipeline/blob/main/ARCHITECTURE.md
+[26]:
+  https://github.com/Xunnamius/projector-pipeline/blob/main/ARCHITECTURE.md#pipeline-commit-message-commands
