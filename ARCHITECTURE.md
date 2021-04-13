@@ -192,10 +192,11 @@ message is parsed for commands.
 
 The following commands are recognized:
 
-| Command     | Alias(es)   | Description                                    | Usage Example                                          |
-| ----------- | ----------- | ---------------------------------------------- | ------------------------------------------------------ |
-| `[skip ci]` | `[ci skip]` | Skip the entire pipeline (implies `[skip cd]`) | `git commit -m 'build: fix CI system [skip ci]'`       |
-| `[skip cd]` | `[cd skip]` | Skip only the CD stage                         | `git commit -m 'style: do-not-release-this [skip cd]'` |
+| Command     | Alias(es)   | Description                                                           | Usage Example                                                                |
+| ----------- | ----------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `[skip cl]` | `[cl skip]` | Skip only local unit and integration tests. Linting is never skipped. | `git commit -m 'build: make a commit while tests are not passing [skip cl]'` |
+| `[skip ci]` | `[ci skip]` | Skip the entire pipeline (implies `[skip cd]`)                        | `git commit -m 'build: fix CI system [skip ci]'`                             |
+| `[skip cd]` | `[cd skip]` | Skip only the CD stage                                                | `git commit -m 'style: do-not-release-this [skip cd]'`                       |
 
 ## Pushing Commits And Merging PRs
 
@@ -229,7 +230,7 @@ The pipeline recognizes two configurations files:
 - **Global default configuration** is downloaded at the start of every
   `projector-pipeline` run _across all projects and repositories_ from the
   following permanent URI:
-  [https://github.com/xunnamius/projector-pipeline/blob/main/dist/pipeline.config.js][20]
+  [https://github.com/xunnamius/projector-pipeline/raw/main/dist/pipeline.config.js][20]
 
 - **Local configuration** is sourced from `.github/pipeline.config.js`, if it
   exists in the repository. See [this example][21] for more details.
