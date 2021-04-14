@@ -8,8 +8,8 @@ export type CreateMutable<T> = {
 /**
  * List (enum) of available component actions.
  *
- * ! Each value of this enum must correspond to a filename:
- * ! `src/component-actions/${enum-value}.ts`
+ * Each value of this enum must correspond to the following filename:
+ * `src/component-actions/${enum-value}.ts`.
  */
 export enum ComponentAction {
   Audit = 'audit',
@@ -28,6 +28,16 @@ export enum ComponentAction {
 }
 
 /**
+ * The return type of `await import(...)` when importing a component action
+ * file.
+ */
+export type ImportedComponentAction = {
+  default: (
+    options?: InvokerOptions
+  ) => Promise<Metadata | Record<string, unknown> | void>;
+};
+
+/**
  * Settings expected by `@actions/checkout`.
  *
  * If `bareWorkingTree` is true, all files in the working tree are destroyed.
@@ -38,8 +48,7 @@ export enum ComponentAction {
  *
  * See also: https://github.com/actions/checkout/blob/main/src/main.ts
  */
-// TODO: finish this
-export type CheckoutOptions = { bareWorkingTree: boolean };
+export type CheckoutOptions = { bareWorkingTree: boolean }; // TODO: finish this
 
 /**
  * Settings expected by `@actions/setup-node`.
@@ -196,7 +205,7 @@ export type InvokerOptions = {
   enableFastSkips?: boolean;
 
   /**
-   * If `true` or an instance of `CheckoutActionSettings`, a repository will be
+   * If `true` or an instance of `CheckoutSettings`, a repository will be
    * checked out using `@actions/checkout` action. See the `pipeline.config.js`
    * files for configuration details.
    *
@@ -205,7 +214,7 @@ export type InvokerOptions = {
   checkout?: boolean | Partial<CheckoutOptions>;
 
   /**
-   * If `true` or an instance of `SetupNodeActionSettings`, node will be
+   * If `true` or an instance of `SetupNodeSettings`, node will be
    * installed and configured by the `@actions/checkout` action. See the
    * `pipeline.config.js` files for configuration details.
    *
