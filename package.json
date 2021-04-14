@@ -49,72 +49,6 @@
     "test-integration-webpack": "BABEL_ENV=test jest $JEST_CLI test/integration-webpack*.test.ts --testPathIgnorePatterns dist",
     "test-unit": "BABEL_ENV=test jest $JEST_CLI --coverage --collectCoverageFrom 'src/**/*.ts' --collectCoverageFrom 'lib/**/*.ts' --collectCoverageFrom 'external-scripts/**/*.ts' --testPathIgnorePatterns test/integration-*.test.ts dist"
   },
-  "commitlint": {
-    "extends": [
-      "@commitlint/config-conventional"
-    ],
-    "rules": {
-      "body-leading-blank": [
-        2,
-        "always"
-      ],
-      "footer-leading-blank": [
-        2,
-        "always"
-      ],
-      "type-enum": [
-        2,
-        "always",
-        [
-          "feat",
-          "fix",
-          "docs",
-          "style",
-          "refactor",
-          "test",
-          "revert",
-          "debug",
-          "build",
-          "chore"
-        ]
-      ]
-    }
-  },
-  "lint-staged": {
-    "*.md": "remark -o --use reference-links --use gfm --use frontmatter",
-    "package.json": "sort-package-json",
-    "*": "prettier --write --ignore-unknown"
-  },
-  "prettier": {
-    "endOfLine": "lf",
-    "printWidth": 80,
-    "proseWrap": "always",
-    "semi": true,
-    "singleQuote": true,
-    "tabWidth": 2,
-    "trailingComma": "none",
-    "overrides": [
-      {
-        "files": "**/*.@(ts|?(@(c|m))js)?(x)",
-        "options": {
-          "parser": "babel-ts",
-          "printWidth": 90
-        }
-      }
-    ]
-  },
-  "jest": {
-    "setupFilesAfterEnv": [
-      "./test/setup.ts"
-    ],
-    "testEnvironment": "node",
-    "testPathIgnorePatterns": [
-      "/node_modules/"
-    ],
-    "testRunner": "jest-circus/runner",
-    "testTimeout": 60000,
-    "verbose": false
-  },
   "dependencies": {
     "@actions/artifact": "^0.5.0",
     "@actions/cache": "^1.0.6",
@@ -189,9 +123,9 @@
     "remark-lint-ordered-list-marker-style": "^2.0.1",
     "remark-reference-links": "^5.0.0",
     "remark-validate-links": "^10.0.4",
-    "semantic-release": "Xunnamius/semantic-release",
+    "semantic-release": "github:xunnamius/semantic-release",
     "simple-git": "^2.35.1",
-    "sort-package-json": "Xunnamius/sort-package-json",
+    "sort-package-json": "github:xunnamius/sort-package-json",
     "source-map-support": "^0.5.19",
     "spellchecker": "^3.7.1",
     "text-extensions": "^2.4.0",
