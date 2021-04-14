@@ -1,7 +1,7 @@
 import { name as pkgName } from '../../package.json';
 import { ComponentAction } from '../../types/global';
 import { ComponentActionError } from '../error';
-import { setEnvOutput } from '../utils/set-env-output';
+import { setupEnv } from '../utils/setup-env';
 import debugFactory from 'debug';
 import core from '@actions/core';
 
@@ -23,7 +23,7 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
     // TODO
   } as Metadata;
 
-  setEnvOutput(metadata); // TODO: do this early along w/ metadata resolution
+  setupEnv(metadata); // TODO: do this early along w/ metadata resolution
   // TODO: reissue warnings if necessary
 
   return metadata;

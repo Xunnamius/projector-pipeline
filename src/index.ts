@@ -4,7 +4,11 @@ import { ComponentAction } from '../types/global';
 import debugFactory from 'debug';
 import cloneDeep from 'clone-deep';
 
-import type { InvokerOptions, InvokerResult } from '../types/global';
+import type {
+  InvokerOptions,
+  InvokerResult,
+  ImportedComponentAction
+} from '../types/global';
 
 export { ComponentAction };
 
@@ -38,11 +42,9 @@ export async function invokeComponentAction(
   try {
     debug(`invoking component action "${action}" with initial options: %O`, options);
     outputs =
-      (await (
-        await ((await import(action)) as Promise<{
-          default: (options?: InvokerOptions) => Promise<Record<string, unknown> | void>;
-        }>)
-      ).default(options)) || {};
+      (await ((await import(
+        `${__dirname}/../src/component-actions/${action}`
+      )) as ImportedComponentAction).default(options)) || {};
   } catch (e) {
     debug('final options used: %O', options);
     debug(`caught error during "${action}": %O`, e);

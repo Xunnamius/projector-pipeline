@@ -1,223 +1,104 @@
-import { ComponentAction, invokeComponentAction, componentActions } from '../src/index';
+import { ComponentAction, invokeComponentAction } from '../src/index';
 import { asMockedFunction } from './setup';
+import { promises as fs, constants as mode } from 'fs';
+import mockAction from '../src/component-actions/audit';
 import execa from 'execa';
-import cache from '@actions/cache';
-import artifact from '@actions/artifact';
-import core from '@actions/core';
 
 jest.mock('execa');
-// ? 4/2/2021: There's something weird about how the @action/X packages are
-// ? compiled that makes them not play well with babel transpilation and the
-// ? usual destructuring. I'm pretty sure it's the `import=`/`export=` syntax
-jest.mock('@actions/cache', () => jest.fn());
-jest.mock('@actions/artifact', () => jest.fn());
-jest.mock('@actions/core', () => jest.fn());
+jest.mock('../src/component-actions/audit');
 
 const mockedExeca = asMockedFunction(execa);
-
+// TODO: retire this line when .changelogrc.js is fixed
 mockedExeca.sync = jest.requireActual('execa').sync;
-const mockedCache = (cache as unknown) as jest.Mock<typeof cache>;
-const mockedCacheSaveCache = asMockedFunction<typeof cache['saveCache']>();
-const mockedCacheRestoreCache = asMockedFunction<typeof cache['restoreCache']>();
-const mockedArtifact = (artifact as unknown) as jest.Mock<typeof artifact>;
-const mockedArtifactCreate = asMockedFunction<typeof artifact['create']>();
-const mockedCore = (core as unknown) as jest.Mock<typeof core>;
-const mockedCoreWarning = asMockedFunction<typeof core['warning']>();
 
-mockedCache.mockImplementation(
-  () =>
-    (({
-      saveCache: mockedCacheSaveCache,
-      restoreCache: mockedCacheRestoreCache
-    } as unknown) as typeof cache)
-);
+const mockedAction = asMockedFunction(mockAction);
+const mockedActionName = ComponentAction.Audit;
+let mockContext: Record<string, unknown> | undefined = undefined;
 
-mockedArtifact.mockImplementation(
-  () =>
-    (({
-      create: mockedArtifactCreate
-    } as unknown) as typeof artifact)
-);
-
-mockedCore.mockImplementation(
-  () =>
-    (({
-      warning: mockedCoreWarning
-    } as unknown) as typeof core)
-);
+beforeAll(() => jest.mock('@actions/github', () => ({ context: mockContext })));
 
 afterEach(() => {
+  mockContext = undefined;
   jest.clearAllMocks();
 });
 
 describe('::invokeComponentAction', () => {
-  it('empty rejected promises handled correctly', async () => {
+  it('all ComponentActions refer to files under `src/component-actions`', async () => {
     expect.hasAssertions();
 
-    const spy = jest
-      .spyOn(componentActions, ComponentAction.MetadataCollect)
-      .mockReturnValueOnce(({
-        npmAuditFailLevel: 'test-audit-level'
-      } as unknown) as ReturnType<typeof componentActions[ComponentAction.MetadataCollect]>);
-
-    mockedExeca.mockReturnValueOnce(
-      (Promise.reject() as unknown) as ReturnType<typeof mockedExeca>
+    await Promise.all(
+      Object.values(ComponentAction).map((path) =>
+        expect(
+          fs.access(`${__dirname}/../src/component-actions/${path}.ts`, mode.R_OK)
+        ).resolves.toBeUndefined()
+      )
     );
+  });
 
-    await expect(invokeComponentAction(ComponentAction.Audit)).rejects.toMatchObject({
-      message: 'audit component action invocation failed'
+  it('capable of invoking component actions', async () => {
+    expect.hasAssertions();
+
+    // @ts-expect-error: we don't care that the dummy return value isn't valid
+    mockedAction.mockReturnValueOnce(Promise.resolve({ faker: true }));
+
+    await expect(invokeComponentAction(mockedActionName)).resolves.toStrictEqual({
+      action: mockedActionName,
+      options: expect.anything(),
+      outputs: { faker: true }
     });
 
-    expect(mockedExeca).toBeCalled();
-    spy.mockRestore();
+    mockedAction.mockReturnValueOnce(Promise.resolve());
+
+    await expect(invokeComponentAction(mockedActionName)).resolves.toStrictEqual({
+      action: mockedActionName,
+      options: expect.anything(),
+      outputs: {}
+    });
+
+    expect(mockedAction).toBeCalledTimes(2);
+  });
+
+  it('rejected promise handled correctly', async () => {
+    expect.hasAssertions();
+
+    mockedAction.mockReturnValueOnce(Promise.reject('bad thing'));
+
+    await expect(invokeComponentAction(ComponentAction.Audit)).rejects.toMatchObject({
+      message: `${ComponentAction.Audit} component action invocation failed: bad thing`
+    });
+
+    mockedAction.mockReturnValueOnce(Promise.reject(new Error('bad error')));
+
+    await expect(invokeComponentAction(ComponentAction.Audit)).rejects.toMatchObject({
+      message: `${ComponentAction.Audit} component action invocation failed: bad error`
+    });
+
+    expect(mockedAction).toBeCalledTimes(2);
+  });
+
+  it('empty rejected promise handled correctly', async () => {
+    expect.hasAssertions();
+
+    mockedAction.mockReturnValueOnce(Promise.reject());
+
+    await expect(invokeComponentAction(ComponentAction.Audit)).rejects.toMatchObject({
+      message: `${ComponentAction.Audit} component action invocation failed`
+    });
+
+    expect(mockedAction).toBeCalledTimes(1);
   });
 
   it('returns new options object', async () => {
     expect.hasAssertions();
 
     const options = {};
-    const spy = jest
-      .spyOn(componentActions, ComponentAction.Audit)
-      .mockReturnValueOnce(Promise.resolve());
+    // @ts-expect-error: we don't care that the dummy return value isn't valid
+    mockedAction.mockReturnValueOnce(Promise.resolve({ faker: true }));
 
     await expect(
       (await invokeComponentAction(ComponentAction.Audit, options)).options
     ).not.toBe(options);
 
-    spy.mockRestore();
-  });
-
-  describe('action: audit', () => {
-    it('succeeds if npm audit is successful', async () => {
-      expect.hasAssertions();
-
-      const spy = jest
-        .spyOn(componentActions, ComponentAction.MetadataCollect)
-        .mockReturnValueOnce(({
-          npmAuditFailLevel: 'test-audit-level'
-        } as unknown) as ReturnType<typeof componentActions[ComponentAction.MetadataCollect]>);
-
-      mockedExeca.mockReturnValueOnce(
-        (Promise.resolve() as unknown) as ReturnType<typeof mockedExeca>
-      );
-
-      await expect(invokeComponentAction(ComponentAction.Audit)).resolves.toStrictEqual({
-        action: ComponentAction.Audit,
-        options: {},
-        outputs: {}
-      });
-
-      expect(mockedExeca).toBeCalledWith(
-        'npm',
-        ['audit', '--audit-level=test-audit-level'],
-        {
-          stdio: 'inherit'
-        }
-      );
-
-      spy.mockRestore();
-    });
-
-    it('fails if npm audit is unsuccessful', async () => {
-      expect.hasAssertions();
-
-      const spy = jest
-        .spyOn(componentActions, ComponentAction.MetadataCollect)
-        .mockReturnValueOnce(({
-          npmAuditFailLevel: 'test-audit-level'
-        } as unknown) as ReturnType<typeof componentActions[ComponentAction.MetadataCollect]>);
-
-      mockedExeca.mockReturnValueOnce(
-        (Promise.reject(new Error('fake error')) as unknown) as ReturnType<
-          typeof mockedExeca
-        >
-      );
-
-      await expect(invokeComponentAction(ComponentAction.Audit)).rejects.toMatchObject({
-        message: expect.stringContaining(
-          'audit component action invocation failed: fake error'
-        )
-      });
-
-      expect(mockedExeca).toBeCalledWith(
-        'npm',
-        ['audit', '--audit-level=test-audit-level'],
-        {
-          stdio: 'inherit'
-        }
-      );
-
-      spy.mockRestore();
-    });
-  });
-
-  describe('action: build', () => {
-    it('succeeds if build script is successful', async () => {
-      expect.hasAssertions();
-
-      const spy = jest
-        .spyOn(componentActions, ComponentAction.MetadataCollect)
-        .mockReturnValueOnce(({
-          npmAuditFailLevel: 'test-audit-level'
-        } as unknown) as ReturnType<typeof componentActions[ComponentAction.MetadataCollect]>);
-
-      mockedExeca.mockReturnValueOnce(
-        (Promise.resolve() as unknown) as ReturnType<typeof mockedExeca>
-      );
-
-      await expect(invokeComponentAction(ComponentAction.Audit)).resolves.toStrictEqual({
-        action: ComponentAction.Audit,
-        options: {},
-        outputs: {}
-      });
-
-      expect(mockedExeca).toBeCalledWith('npm', ['run', 'format'], {
-        stdio: 'inherit'
-      });
-
-      expect(mockedExeca).toBeCalledWith('npm', ['run', 'build-dist'], {
-        stdio: 'inherit'
-      });
-
-      expect(mockedExeca).not.toBeCalledWith('npm', ['run', 'build-docs'], {
-        stdio: 'inherit'
-      });
-
-      expect(mockedCoreWarning).toBeCalled();
-
-      spy.mockRestore();
-    });
-
-    it('fails if npm audit is unsuccessful', async () => {
-      expect.hasAssertions();
-
-      const spy = jest
-        .spyOn(componentActions, ComponentAction.MetadataCollect)
-        .mockReturnValueOnce(({
-          npmAuditFailLevel: 'test-audit-level'
-        } as unknown) as ReturnType<typeof componentActions[ComponentAction.MetadataCollect]>);
-
-      mockedExeca.mockReturnValueOnce(
-        (Promise.reject(new Error('fake error')) as unknown) as ReturnType<
-          typeof mockedExeca
-        >
-      );
-
-      await expect(invokeComponentAction(ComponentAction.Audit)).rejects.toMatchObject({
-        message: expect.stringContaining(
-          'audit component action invocation failed: fake error'
-        )
-      });
-
-      expect(mockedExeca).toBeCalledWith(
-        'npm',
-        ['audit', '--audit-level=test-audit-level'],
-        {
-          stdio: 'inherit'
-        }
-      );
-
-      spy.mockRestore();
-    });
+    expect(mockedAction).toBeCalledTimes(1);
   });
 });

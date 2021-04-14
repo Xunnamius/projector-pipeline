@@ -4,3 +4,4 @@ import debugFactory from 'debug';
 import core from '@actions/core';
 
 const debug = debugFactory(`${pkgName}:actions-checkout`);
+void debug, core, ComponentActionError;

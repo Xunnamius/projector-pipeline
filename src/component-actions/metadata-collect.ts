@@ -1,7 +1,7 @@
 import { name as pkgName } from '../../package.json';
 import { ComponentAction } from '../../types/global';
 import { ComponentActionError } from '../error';
-import { setEnvOutput } from '../utils/set-env-output';
+import { setupEnv } from '../utils/setup-env';
 import { context } from '@actions/github';
 import { accessSync, readFileSync, writeFileSync, constants as fs } from 'fs';
 import { uploadPaths } from '../utils/actions-artifact';
@@ -20,7 +20,7 @@ import type {
   CreateMutable,
   LocalPipelineConfig,
   GlobalPipelineConfig,
-  CheckoutActionSettings,
+  CheckoutOptions,
   InvokerOptions,
   Metadata
 } from '../../types/global';
@@ -40,21 +40,15 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
   if (options.checkout) {
     debug(`running @actions/checkout`);
 
-    const _oldGetInput = core.getInput;
-    const opts = (options.checkout = {
-      persistCredentials: false,
-      authToken: options.githubToken,
-      ...(typeof options.checkout != 'boolean' ? options.checkout : {})
-    });
+    const opts = (options.checkout =
+      typeof options.checkout != 'boolean' ? options.checkout : {});
 
     (core.getInput as CreateMutable<typeof core.getInput>) = (
-      name: keyof CheckoutActionSettings
+      name: keyof CheckoutOptions
     ) => opts[name]?.toString();
 
     // TODO: fixme
-    const gitSourceSettings = getInputs();
-    (core.getInput as CreateMutable<typeof core.getInput>) = _oldGetInput;
-    await getSource(gitSourceSettings);
+    // await getSource(gitSourceSettings);
   }
 
   debug(`downloading global default metadata from ${GLOBAL_PIPELINE_CONFIG_URI}`);
@@ -137,7 +131,7 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
     throw new ComponentActionError('failed to determine PR number given PR event type');
   }
 
-  setEnvOutput(metadata);
+  setupEnv(metadata);
 
   const { stdout: lastCommitMessage } = await execa('git', [
     'log',
@@ -168,20 +162,21 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
       options.setupNode = typeof options.setupNode != 'boolean' ? options.setupNode : {};
 
       // ? See: https://github.com/actions/setup-node/blob/main/src/main.ts
-      const version =
-        options.setupNode.nodeVersion ||
-        options.setupNode.version ||
-        metadata.nodeCurrentVersion;
+      void os;
+      // const version =
+      //   options.setupNode.nodeVersion ||
+      //   options.setupNode.version ||
+      //   metadata.nodeCurrentVersion;
 
-      const info = await getNode(
-        version,
-        !!options.setupNode.stable,
-        !!options.setupNode.checkLatest,
-        !options.setupNode.token ? undefined : `token ${options.setupNode.token}`,
-        options.setupNode.architecture || os.arch()
-      );
+      // const info = await getNode(
+      //   version,
+      //   !!options.setupNode.stable,
+      //   !!options.setupNode.checkLatest,
+      //   !options.setupNode.token ? undefined : `token ${options.setupNode.token}`,
+      //   options.setupNode.architecture || os.arch()
+      // );
 
-      debug(`node installer info for version "${version}": %O`, info);
+      // debug(`node installer info for version "${version}": %O`, info);
     }
 
     const { stdout: rawTaskList } = await execa('npm', ['run', 'list-tasks']);
