@@ -272,12 +272,12 @@ with:
 This action accepts an `options` JSON string input with the following properties
 and constraints:
 
-| Name              | Type                                      | Default | Description                                                                                                                                                                                                                                                                                                                                                       |
-| :---------------- | :---------------------------------------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `github-token`    | _`string`_                                | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                                                                                                                                                            |
-| `upload-artifact` | _`boolean`_                               | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action.                                                                                                                                                                                                |
-| `checkout`        | _`boolean \| Partial<CheckoutSettings>`_  | `true`  | If _truthy_, `@actions/checkout` is triggered. If `checkout` is a [`CheckoutSettings`-like object][43], it is passed to `@actions/checkout` as configuration. Note that [`checkout.persistCredentials`][43] is set to `false` by default. Note also the additional [`checkout.bareWorkingTree`][43] setting, which is false by default for this component action. |
-| `setupNode`       | _`boolean \| Partial<SetupNodeSettings>`_ | `true`  | If _truthy_, `@actions/setup-node` is triggered. If `setupNode` is a [`SetupNodeSettings`-like object][43], it is passed to `@actions/setup-node` as configuration. See also: [configuring the pipeline][23].                                                                                                                                                     |
+| Name              | Type                                      | Default | Description                                                                                                                                                                                                                                                |
+| :---------------- | :---------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-token`    | _`string`_                                | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                                                     |
+| `upload-artifact` | _`boolean`_                               | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action.                                                                                         |
+| `checkout`        | _`boolean \| Partial<CheckoutSettings>`_  | `true`  | If _truthy_, `@actions/checkout` is triggered. If `checkout` is a [`CheckoutSettings`-like object][43], it is passed to `@actions/checkout` as configuration. Otherwise, [sensible defaults][43] are used.                                                 |
+| `setupNode`       | _`boolean \| Partial<SetupNodeSettings>`_ | `true`  | If _truthy_, `@actions/setup-node` is triggered. If `setupNode` is a [`SetupNodeSettings`-like object][43], it is passed to `@actions/setup-node` as configuration. Otherwise, [sensible defaults][43] are used. See also: [configuring the pipeline][23]. |
 
 See also: [configuring the pipeline][23].
 
@@ -343,7 +343,7 @@ with:
       "github-token": "your-github-pat-here",
       "npm-token": "your-npm-token-here",
       "gpg-priv-key": "your-private-key-here",
-      "gpg-passphrase": "your-passphrase-here",
+      "gpg-passphrase": "your-passphrase-here"
     }
 ```
 
