@@ -639,20 +639,6 @@ information.
   https://github.blog/2020-10-13-presenting-v7-0-0-of-the-npm-cli/#user-content-breaking-changes
 [2]: https://github.com/Xunnamius/projector
 [3]: #usage-github-actions
-[4]: #audit-project
-[5]: #build-distributables
-[6]: #post-delete-cleanup
-[7]: #lint-source
-[8]: #collect-metadata
-[9]: #download-metadata
-[10]: #releaseauto-merge
-[11]: #client-integration-tests
-[12]: #externals-integration-tests
-[13]: #node-integration-tests
-[14]: #webpack-integration-tests
-[15]: #unit-tests
-[16]: #post-release-installation-verification
-[17]: #usage-npm
 [18]: #install
 [19]: #example
 [20]: #documentation
