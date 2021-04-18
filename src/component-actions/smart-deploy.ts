@@ -35,9 +35,10 @@ export default async function (options: InvokerOptions = {}) {
   } else debug('no codecov token provided (OK)');
 
   // TODO: do not checkout if only automerge
-  const metadata = await metadataDownload();
+  // TODO: replace all metadata calls with destructuring style project-wide
+  const { shouldSkipCi, shouldSkipCd, commitSha } = await metadataDownload();
 
-  if (!metadata.shouldSkipCi) {
+  if (!shouldSkipCi && !shouldSkipCd) {
     // * Prepare environment
     // TODO: setup env for GPG and semantic-release
     // TODO: checkout repo but with empty working tree to ./artifact
@@ -46,10 +47,7 @@ export default async function (options: InvokerOptions = {}) {
     await installPrivilegedDependencies();
 
     // * Download, unpack, and verify build artifact
-    await downloadPaths(
-      `build-${process.env.RUNNER_OS}-${metadata.commitSha}`,
-      './artifact'
-    );
+    await downloadPaths(`build-${process.env.RUNNER_OS}-${commitSha}`, './artifact');
     // TODO: check ./artifact does not have a node_modules or .git directory and error if it does
 
     // * Merge privileged dependencies with build artifact

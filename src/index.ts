@@ -7,7 +7,7 @@ import cloneDeep from 'clone-deep';
 import type {
   InvokerOptions,
   InvokerResult,
-  ImportedComponentAction
+  ComponentActionModule
 } from '../types/global';
 
 export { ComponentAction };
@@ -44,7 +44,7 @@ export async function invokeComponentAction(
     outputs =
       (await ((await import(
         `${__dirname}/../src/component-actions/${action}`
-      )) as ImportedComponentAction).default(options)) || {};
+      )) as ComponentActionModule).default(options)) || {};
   } catch (e) {
     debug('final options used: %O', options);
     debug(`caught error during "${action}": %O`, e);

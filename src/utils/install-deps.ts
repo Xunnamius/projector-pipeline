@@ -2,10 +2,12 @@ import { name as pkgName } from '../../package.json';
 import { cachePaths, uncachePaths } from './actions-cache';
 import { hashElement as hashFiles } from 'folder-hash';
 import { PRIVILEGED_DEPS_URI } from '../index';
-import { readFileSync } from 'fs';
+import { ComponentActionError } from '../error';
+import { readFileSync, accessSync, constants as fs } from 'fs';
 import semver from 'semver';
 import debugFactory from 'debug';
 import execa from 'execa';
+import core from '@actions/core';
 
 const debug = debugFactory(`${pkgName}:install-deps`);
 
@@ -43,11 +45,27 @@ export async function installPeerDeps() {
   if (semver.satisfies(npmVersion, '<7.0')) {
     debug(`old npm version ${npmVersion} detected; checking for peer dependencies`);
 
-    const peerDeps = Object.entries(
-      JSON.parse(readFileSync('./package.json', { encoding: 'utf-8' })) || {}
-    )
-      .map(([p, v]) => `${p}@${v}`)
-      .join(' ');
+    let peerDeps = '';
+
+    try {
+      peerDeps = Object.entries<string>(
+        JSON.parse(readFileSync('./package.json', { encoding: 'utf-8' }))
+          ?.peerDependencies || {}
+      )
+        .map(([p, v]) => {
+          if (!v.startsWith('>')) {
+            core.warning(
+              `installed peer dependency "${p}" with version specifier "${v}", which does not begin with ">". ` +
+                'This is likely a typo'
+            );
+          }
+
+          return `${p}@${v}`;
+        })
+        .join(' ');
+    } catch (e) {
+      throw new ComponentActionError(`failed to parse package.json: ${e}`);
+    }
 
     if (peerDeps.length) {
       debug(`installing peer dependencies`);
@@ -62,8 +80,21 @@ export async function installPeerDeps() {
  * `npm@<7`.
  */
 export async function installPrivilegedDependencies() {
+  let pkgJsonExists = true;
+
+  try {
+    accessSync('package.json', fs.F_OK);
+  } catch {
+    pkgJsonExists = false;
+  }
+
+  if (pkgJsonExists)
+    throw new ComponentActionError('refusing to overwrite existing package.json');
+
   debug(`downloading privileged package.json from ${PRIVILEGED_DEPS_URI}`);
-  await execa('curl', ['-LJO', PRIVILEGED_DEPS_URI], { stdio: 'inherit' });
+  await execa('curl', ['-o', 'package.json', '-L', PRIVILEGED_DEPS_URI], {
+    stdio: 'inherit'
+  });
 
   debug('installing privileged dependencies');
   await execa('npm', ['install'], { stdio: 'inherit' });

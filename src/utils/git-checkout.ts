@@ -5,3 +5,10 @@ import core from '@actions/core';
 
 const debug = debugFactory(`${pkgName}:actions-checkout`);
 void debug, core, ComponentActionError;
+
+/**
+ * TODO: document me!
+ */
+export async function checkoutGitRepository() {
+  // TODO
+}

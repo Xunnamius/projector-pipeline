@@ -5,3 +5,10 @@ import core from '@actions/core';
 
 const debug = debugFactory(`${pkgName}:actions-setup-node`);
 void debug, core, ComponentActionError;
+
+/**
+ * TODO: document me!
+ */
+export async function setupNode() {
+  // TODO
+}
