@@ -3,7 +3,7 @@ import { ComponentAction } from '../../types/global';
 import { ComponentActionError } from '../error';
 import { setupEnv } from '../utils/setup-env';
 import { context } from '@actions/github';
-import { accessSync, readFileSync, writeFileSync, constants as fs } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { uploadPaths } from '../utils/actions-artifact';
 import debugFactory from 'debug';
 import core from '@actions/core';
