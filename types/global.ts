@@ -6,6 +6,11 @@ export type CreateMutable<T> = {
 };
 
 /**
+ * Utility type for testing Execa
+ */
+export type ExecaReturnType = ReturnType<typeof import('execa')>;
+
+/**
  * List (enum) of available component actions.
  *
  * Each value of this enum must correspond to the following filename:
@@ -31,11 +36,14 @@ export enum ComponentAction {
  * The return type of `await import(...)` when importing a component action
  * file.
  */
-export type ImportedComponentAction = {
-  default: (
-    options?: InvokerOptions
-  ) => Promise<Metadata | Record<string, unknown> | void>;
-};
+export type ComponentActionModule = { default: ComponentActionFunction };
+
+/**
+ * The type signature of a ComponentAction function.
+ */
+export type ComponentActionFunction = (
+  options?: InvokerOptions
+) => Promise<Metadata | Record<string, unknown> | void>;
 
 /**
  * Settings expected by `@actions/checkout`.
