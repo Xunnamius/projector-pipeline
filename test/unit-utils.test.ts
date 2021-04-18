@@ -1,7 +1,9 @@
-import { asMockedFunction } from './setup';
+import { name as pkgName } from '../package.json';
+import { asMockedFunction, withMockedOutput } from './setup';
 import { PRIVILEGED_DEPS_URI } from '../src/index';
 import { hashElement as hashFiles } from 'folder-hash';
 import { readFileSync, accessSync } from 'fs';
+import debugFactory from 'debug';
 import cache from '@actions/cache';
 import artifact from '@actions/artifact';
 import core from '@actions/core';
@@ -14,7 +16,7 @@ import * as gitCheckout from '../src/utils/git-checkout';
 import * as setupNode from '../src/utils/setup-node';
 import * as installDeps from '../src/utils/install-deps';
 
-import type { ExecaReturnType } from '../types/global';
+import type { ExecaReturnType, Metadata } from '../types/global';
 import type { HashElementNode } from 'folder-hash';
 
 // TODO: remove these
@@ -37,7 +39,9 @@ jest.mock('@actions/artifact', () => ({
 }));
 
 jest.mock('@actions/core', () => ({
-  warning: jest.fn()
+  warning: jest.fn(),
+  setCommandEcho: jest.fn(),
+  exportVariable: jest.fn()
 }));
 
 const mockedExeca = asMockedFunction(execa);
@@ -52,13 +56,24 @@ const mockedCacheSaveCache = asMockedFunction(cache.saveCache);
 const mockedCacheRestoreCache = asMockedFunction(cache.restoreCache);
 const mockedArtifactCreate = asMockedFunction(artifact.create);
 const mockedCoreWarning = asMockedFunction(core.warning);
+const mockedCoreSetCommandEcho = asMockedFunction(core.setCommandEcho);
+const mockedCoreExportVariable = asMockedFunction(core.exportVariable);
 
 // TODO: remove these
 void mockedCacheSaveCache;
 void mockedCacheRestoreCache;
 void mockedArtifactCreate;
 
+let runtimeDebugNamespaces: string;
+
+beforeEach(() => {
+  // ? If debugging has been enabled for the projector-pipeline repo itself,
+  // ? disable it temporarily so as to not interfere these tests
+  runtimeDebugNamespaces = debugFactory.disable();
+});
+
 afterEach(() => {
+  runtimeDebugNamespaces && debugFactory.enable(runtimeDebugNamespaces);
   jest.clearAllMocks();
 });
 
@@ -261,7 +276,45 @@ describe('install-deps', () => {
 });
 
 describe('setup-env', () => {
-  test.todo('me!');
+  it('enables debug only if debugString is provided', async () => {
+    expect.hasAssertions();
+
+    setupEnv.setupEnv(({} as unknown) as Metadata);
+
+    expect(mockedCoreSetCommandEcho).toBeCalledTimes(0);
+    expect(mockedCoreExportVariable).toBeCalledTimes(0);
+    expect(mockedCoreWarning).toBeCalledTimes(0);
+
+    await withMockedOutput(() => {
+      setupEnv.setupEnv(({ debugString: `${pkgName}:*` } as unknown) as Metadata);
+    });
+
+    expect(mockedCoreSetCommandEcho).toBeCalledTimes(1);
+    expect(mockedCoreExportVariable).toBeCalledTimes(1);
+    expect(mockedCoreWarning).toBeCalledTimes(0);
+  });
+
+  it('issues warning if debugString does not fully enable debugging', async () => {
+    expect.hasAssertions();
+
+    setupEnv.setupEnv(({ debugString: 'x:y:z' } as unknown) as Metadata);
+
+    expect(mockedCoreSetCommandEcho).toBeCalledTimes(0);
+    expect(mockedCoreExportVariable).toBeCalledTimes(0);
+    expect(mockedCoreWarning).toBeCalledTimes(1);
+  });
+
+  it('`debugString==true` enables package-wide debugging', async () => {
+    expect.hasAssertions();
+    expect(debugFactory('x-y-z:some-namespace').enabled).toBeFalse();
+
+    setupEnv.setupEnv(({
+      debugString: true,
+      packageName: 'x-y-z'
+    } as unknown) as Metadata);
+
+    expect(debugFactory('x-y-z:some-namespace').enabled).toBeTrue();
+  });
 });
 
 describe('setup-node', () => {

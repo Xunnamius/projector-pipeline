@@ -12,14 +12,14 @@ import type { InvokerOptions } from '../../types/global';
 
 const debug = debugFactory(`${pkgName}:${ComponentAction.CleanupNpm}`);
 
-export default async function (options: InvokerOptions = {}) {
-  if (!options.npmToken) {
+export default async function ({ npmToken }: InvokerOptions = {}) {
+  if (!npmToken) {
     throw new ComponentActionError('missing required option `npmToken`');
-  } else core.setSecret(options.npmToken);
+  } else core.setSecret(npmToken);
 
-  const metadata = await metadataCollect();
+  const { shouldSkipCi, releaseBranchConfig } = await metadataCollect();
 
-  if (!metadata.shouldSkipCi) {
+  if (!shouldSkipCi) {
     await execa('git', ['remote', 'prune', 'origin'], { stdio: 'inherit' });
     const { stdout: branchesString } = await execa('git', [
       'for-each-ref',
@@ -49,11 +49,6 @@ export default async function (options: InvokerOptions = {}) {
     }
 
     debug(`saw current dist tags: ${distTags}`);
-
-    // eslint-disable-next-line import/no-unresolved
-    const releaseBranchConfig = require('./release.config.js')
-      .branches as typeof import('../../release.config')['branches'];
-
     debug(`saw local release branch config: ${releaseBranchConfig}`);
 
     const releaseBranches = match(
@@ -81,7 +76,7 @@ export default async function (options: InvokerOptions = {}) {
 
     if (matchedTags.length) {
       try {
-        writeFileSync('~/.npmrc', `//registry.npmjs.org/:_authToken=${options.npmToken}`);
+        writeFileSync('~/.npmrc', `//registry.npmjs.org/:_authToken=${npmToken}`);
         await Promise.all(
           matchedTags.map((tag) => execa('npm', ['dist-tag', 'rm', pkgName, tag]))
         );

@@ -11,26 +11,30 @@ import execa from 'execa';
 const debug = debugFactory(`${pkgName}:${ComponentAction.Build}`);
 
 export default async function () {
-  const metadata = await metadataCollect();
+  const {
+    shouldSkipCi,
+    commitSha,
+    artifactRetentionDays,
+    hasDocs
+  } = await metadataCollect();
 
-  if (!metadata.shouldSkipCi) {
+  if (!shouldSkipCi) {
+    const os = process.env.RUNNER_OS;
+
     await installDependencies();
     await execa('npm', ['run', 'format'], { stdio: 'inherit' });
     await execa('npm', ['run', 'build-dist'], { stdio: 'inherit' });
 
-    metadata.hasDocs
+    hasDocs
       ? await execa('npm', ['run', 'build-docs'], { stdio: 'inherit' })
       : core.warning('no `build-docs` script defined in package.json');
 
     await execa('npm', ['run', 'format'], { stdio: 'inherit' });
-    await uncachePaths(
-      ['./coverage'],
-      `coverage-${process.env.RUNNER_OS}-${metadata.commitSha}`
-    );
+    await uncachePaths(['./coverage'], `coverage-${os}-${commitSha}`);
     await uploadPaths(
       ['./*', '!./**/node_modules', '!.git'],
-      `build-${process.env.RUNNER_OS}-${metadata.commitSha}`,
-      metadata.artifactRetentionDays
+      `build-${os}-${commitSha}`,
+      artifactRetentionDays
     );
   } else debug(`skipped component action "${ComponentAction.Build}"`);
 }

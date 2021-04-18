@@ -10,29 +10,33 @@ module.exports = {
   //   email: 'bot@xunn.io'
   // },
   //
-  // * Selectively enable debugger verbose output in the pipeline
+  // * Selectively enable debugger verbose output in the pipeline.
+  // ? To enable debugging across all source in this repo (excluding
+  // ? node_modules) without having to type the package name, use a boolean:
+  // debugString: true, // false is treated the same as null/commented out
+  // ? Or you can type out a custom debug namespace string instead, e.g.:
+  // debugString: '@your-namespace/some-package:*',
   // ? See also: https://www.npmjs.com/package/debug#wildcards
   // ? For even more debugging tools, see: https://bit.ly/2R6NAdZ
-  // debugString: '@xunnamius/projector-pipeline:*',
   //
-  // * The version of node to load into each job.
+  // * The semver version of node to install and setup before each job.
   // nodeCurrentVersion: '15.x',
   //
-  // * Node versions to test against.
+  // * Node semver versions to run unit and integration tests against.
   // nodeTestVersions: ['12.x', '14.x'],
   //
-  // * Webpack versions to test against.
+  // * Webpack semver versions to run unit and integration tests against.
   // webpackTestVersions: ['5.x'],
   //
-  // * Regular expressions (w/ proper escaping) for skipping CI/CD. To skip CL,
-  // * use git with the --no-verify option
+  // * Regular expressions for skipping CI/CD. To skip CL, use git with the
+  // * `--no-verify` option.
   // ciSkipRegex: /\[skip ci\]|\[ci skip\]/i,
   // cdSkipRegex: /\[skip cd\]|\[cd skip\]/i,
   //
   // * Should auto-merge be retried on failure even when the PR appears
-  // * unmergeable? Uses exponential back-off internally.
+  // * unmergeable? If `true`, uses exponential back-off internally.
   // ! WARNING: leaving this as `true` might waste Actions minutes and $$$ in
-  // ! private repositories!
+  // ! private repositories. Watch your usage numbers!
   // canRetryAutomerge: true,
   //
   // * NPM audit will fail upon encountering problems of at least the specified
@@ -43,7 +47,7 @@ module.exports = {
   // canUploadCoverage: true,
   //
   // * How many days GitHub should keep uploaded artifacts around.
-  // ! 90 days is GitHub's default, but this should be dramatically lowered for
+  // ! 90 days is GitHub's default, but this should be lowered to 1 day for
   // ! private repos where artifact storage costs $$$.
   // artifactRetentionDays: 90
 };

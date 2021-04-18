@@ -88,6 +88,8 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
   debug(`collecting metadata`);
 
   const metadata: Metadata = {
+    packageName: '<unknown>',
+    releaseBranchConfig: [],
     ciSkipRegex: localConfig.ciSkipRegex || globalConfig.ciSkipRegex,
     cdSkipRegex: localConfig.cdSkipRegex || globalConfig.cdSkipRegex,
     shouldSkipCi: false, // ? Determined later
@@ -145,68 +147,88 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
   metadata.shouldSkipCd =
     metadata.shouldSkipCi || metadata.cdSkipRegex.test(lastCommitMessage);
 
-  if (!options.enableFastSkips || !metadata.shouldSkipCi) {
-  } else {
-    metadata.canRelease =
-      metadata.releaseRepoOwnerWhitelist.includes(context.repo.owner.toLowerCase()) &&
-      metadata.releaseActorWhitelist.includes(context.actor) &&
-      context.eventName != 'pull_request';
-    metadata.canAutomerge =
-      metadata.automergeActorWhitelist.includes(context.actor) &&
-      context.eventName == 'pull_request' &&
-      !context.payload.pull_request?.draft;
+  // ? If fast skips are enabled, bail out without gathering any other metadata
+  if (options.enableFastSkips && metadata.shouldSkipCi) {
+    debug('(fast skip CI) metadata: %O', metadata);
+    return metadata;
+  }
 
-    if (options.setupNode) {
-      debug(`running @actions/setup-node`);
+  metadata.canRelease =
+    metadata.releaseRepoOwnerWhitelist.includes(context.repo.owner.toLowerCase()) &&
+    metadata.releaseActorWhitelist.includes(context.actor) &&
+    context.eventName != 'pull_request';
+  metadata.canAutomerge =
+    metadata.automergeActorWhitelist.includes(context.actor) &&
+    context.eventName == 'pull_request' &&
+    !context.payload.pull_request?.draft;
 
-      options.setupNode = typeof options.setupNode != 'boolean' ? options.setupNode : {};
+  if (options.setupNode) {
+    debug(`running @actions/setup-node`);
 
-      // ? See: https://github.com/actions/setup-node/blob/main/src/main.ts
-      void os;
-      // const version =
-      //   options.setupNode.nodeVersion ||
-      //   options.setupNode.version ||
-      //   metadata.nodeCurrentVersion;
+    options.setupNode = typeof options.setupNode != 'boolean' ? options.setupNode : {};
 
-      // const info = await getNode(
-      //   version,
-      //   !!options.setupNode.stable,
-      //   !!options.setupNode.checkLatest,
-      //   !options.setupNode.token ? undefined : `token ${options.setupNode.token}`,
-      //   options.setupNode.architecture || os.arch()
-      // );
+    // TODO:
+    // ? See: https://github.com/actions/setup-node/blob/main/src/main.ts
+    void os;
+    // const version =
+    //   options.setupNode.nodeVersion ||
+    //   options.setupNode.version ||
+    //   metadata.nodeCurrentVersion;
 
-      // debug(`node installer info for version "${version}": %O`, info);
-    }
+    // const info = await getNode(
+    //   version,
+    //   !!options.setupNode.stable,
+    //   !!options.setupNode.checkLatest,
+    //   !options.setupNode.token ? undefined : `token ${options.setupNode.token}`,
+    //   options.setupNode.architecture || os.arch()
+    // );
 
-    const { stdout: rawTaskList } = await execa('npm', ['run', 'list-tasks']);
-    const taskList = rawTaskList.split('\n');
+    // debug(`node installer info for version "${version}": %O`, info);
+  }
 
-    try {
-      accessSync('./release.config.js', fs.R_OK);
-      metadata.hasReleaseConfig = true;
-    } catch {
-      metadata.hasReleaseConfig = false;
-    }
+  const { stdout: rawTaskList } = await execa('npm', ['run', 'list-tasks']);
+  const taskList = rawTaskList.split('\n');
+  let packageConfig: typeof import('../../package.json');
+  let releaseConfig: Partial<typeof import('../../release.config')>;
 
-    metadata.hasDeploy = taskList.includes('deploy');
-    metadata.hasDocs = taskList.includes('build-docs');
-    metadata.hasExternals = taskList.includes('build-externals');
-    metadata.hasIntegrationNode = taskList.includes('test-integration-node');
-    metadata.hasIntegrationExternals = taskList.includes('test-integration-externals');
-    metadata.hasIntegrationClient = taskList.includes('test-integration-client');
-    metadata.hasIntegrationWebpack = taskList.includes('test-integration-webpack');
+  try {
+    packageConfig = JSON.parse(readFileSync('./package.json', { encoding: 'utf-8' }));
+  } catch (e) {
+    throw new ComponentActionError(`failed to parse package.json: ${e}`);
+  }
 
-    if (metadata.hasExternals != metadata.hasIntegrationExternals) {
-      throw new ComponentActionError(
-        'expected both 1) `build-externals` and 2) `test-integration-externals` ' +
-          'scripts to be defined in package.json'
-      );
-    } else if (!metadata.hasDocs) {
-      core.warning('no `build-docs` script defined in package.json');
-    } else if (!metadata.canUploadCoverage) {
-      core.warning('no code coverage data will be uploaded during this run');
-    }
+  try {
+    releaseConfig = JSON.parse(
+      readFileSync('./release.config.js', { encoding: 'utf-8' })
+    );
+    metadata.hasReleaseConfig = true;
+  } catch (e) {
+    releaseConfig = {} as typeof releaseConfig;
+    metadata.hasReleaseConfig = false;
+
+    core.warning(`no release config loaded: failed to parse release.config.js`);
+    debug(`no release config loaded: failed to parse release.config.js: ${e}`);
+  }
+
+  metadata.packageName = packageConfig.name;
+  metadata.releaseBranchConfig = releaseConfig.branches || [];
+  metadata.hasDeploy = taskList.includes('deploy');
+  metadata.hasDocs = taskList.includes('build-docs');
+  metadata.hasExternals = taskList.includes('build-externals');
+  metadata.hasIntegrationNode = taskList.includes('test-integration-node');
+  metadata.hasIntegrationExternals = taskList.includes('test-integration-externals');
+  metadata.hasIntegrationClient = taskList.includes('test-integration-client');
+  metadata.hasIntegrationWebpack = taskList.includes('test-integration-webpack');
+
+  if (metadata.hasExternals != metadata.hasIntegrationExternals) {
+    throw new ComponentActionError(
+      'expected both 1) `build-externals` and 2) `test-integration-externals` ' +
+        'scripts to be defined in package.json'
+    );
+  } else if (!metadata.hasDocs) {
+    core.warning('no `build-docs` script defined in package.json');
+  } else if (!metadata.canUploadCoverage) {
+    core.warning('no code coverage data will be uploaded during this run');
   }
 
   debug('metadata: %O', metadata);

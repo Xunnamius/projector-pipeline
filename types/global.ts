@@ -115,10 +115,11 @@ export type LocalPipelineConfig = {
    */
   canUploadCoverage: boolean;
   /**
-   * If not `null` or `""`, debugging will be activated via
-   * `DEBUG='${debugString}'`.
+   * If not `null`, `false`, or `""`, debugging will be activated via
+   * `DEBUG='${debugString}'`. If `true`, the runtime `package.json` name will
+   * be used, i.e. `DEBUG='${name}:*'`.
    */
-  debugString: string | null;
+  debugString: boolean | string | null;
   /**
    * The name and email used to create git commits, tags, and pushes.
    */
@@ -278,6 +279,8 @@ export type InvokerResult = {
  * output for said component actions. See `action.yml` for further details.
  */
 export type Metadata = {
+  packageName: string;
+  releaseBranchConfig: typeof import('../release.config')['branches'];
   shouldSkipCi: boolean;
   shouldSkipCd: boolean;
   commitSha: string;

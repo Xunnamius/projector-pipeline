@@ -1,5 +1,4 @@
 import { name as pkgName } from '../../package.json';
-import { ComponentActionError } from '../error';
 import debugFactory from 'debug';
 import core from '@actions/core';
 
@@ -11,17 +10,19 @@ const debug = debugFactory(`${pkgName}:set-env-outputs`);
  * Issue set-output and set-env commands, including ensuring DEBUG is set
  * action-wide
  */
-export function setupEnv(metadata: Metadata) {
-  if (metadata.debugString) {
-    debugFactory.enable(metadata.debugString);
+export function setupEnv({ debugString, packageName }: Metadata) {
+  if (debugString) {
+    debugFactory.enable(
+      typeof debugString == 'boolean' ? `${packageName}:*` : debugString
+    );
 
     if (debug.enabled) {
-      debug(`debug string recognized: ${metadata.debugString}`);
+      debug(`pipeline debug string recognized: ${debugString}`);
       core.setCommandEcho(true);
-      core.exportVariable('DEBUG', metadata.debugString);
+      core.exportVariable('DEBUG', debugString);
     } else {
-      throw new ComponentActionError(
-        `failed to enable debug mode: namespace "${metadata.debugString}" does not include this script`
+      core.warning(
+        `debug string "${debugString}" is narrow; not all debug output will be visible`
       );
     }
   }

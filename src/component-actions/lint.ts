@@ -8,9 +8,9 @@ import execa from 'execa';
 const debug = debugFactory(`${pkgName}:${ComponentAction.Lint}`);
 
 export default async function () {
-  const metadata = await metadataCollect();
+  const { shouldSkipCi } = await metadataCollect();
 
-  if (!metadata.shouldSkipCi) {
+  if (!shouldSkipCi) {
     await installDependencies();
     await execa('npm', ['run', 'lint'], { stdio: 'inherit' });
   } else debug(`skipped component action "${ComponentAction.Lint}"`);

@@ -8,9 +8,9 @@ import execa from 'execa';
 const debug = debugFactory(`${pkgName}:${ComponentAction.TestIntegrationNode}`);
 
 export default async function () {
-  const metadata = await metadataCollect();
+  const { shouldSkipCi } = await metadataCollect();
 
-  if (!metadata.shouldSkipCi) {
+  if (!shouldSkipCi) {
     await installDependencies();
     await execa('npm', ['run', 'test-integration-node'], { stdio: 'inherit' });
   } else debug(`skipped component action "${ComponentAction.TestIntegrationNode}"`);

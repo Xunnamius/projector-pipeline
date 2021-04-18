@@ -7,10 +7,10 @@ import execa from 'execa';
 const debug = debugFactory(`${pkgName}:${ComponentAction.Audit}`);
 
 export default async function () {
-  const metadata = await metadataCollect();
+  const { shouldSkipCi, npmAuditFailLevel } = await metadataCollect();
 
-  if (!metadata.shouldSkipCi) {
-    await execa('npm', ['audit', `--audit-level=${metadata.npmAuditFailLevel}`], {
+  if (!shouldSkipCi) {
+    await execa('npm', ['audit', `--audit-level=${npmAuditFailLevel}`], {
       stdio: 'inherit'
     });
   } else debug(`skipped component action "${ComponentAction.Audit}"`);

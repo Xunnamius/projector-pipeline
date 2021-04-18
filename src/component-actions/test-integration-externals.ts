@@ -8,9 +8,9 @@ import execa from 'execa';
 const debug = debugFactory(`${pkgName}:${ComponentAction.TestIntegrationExternals}`);
 
 export default async function () {
-  const metadata = await metadataCollect();
+  const { shouldSkipCi } = await metadataCollect();
 
-  if (!metadata.shouldSkipCi) {
+  if (!shouldSkipCi) {
     await installDependencies();
     await execa('npm', ['run', 'test-integration-externals'], { stdio: 'inherit' });
   } else debug(`skipped component action "${ComponentAction.TestIntegrationExternals}"`);

@@ -10,17 +10,15 @@ import execa from 'execa';
 const debug = debugFactory(`${pkgName}:${ComponentAction.TestUnit}`);
 
 export default async function () {
-  const metadata = await metadataCollect();
+  const { shouldSkipCi, canUploadCoverage, commitSha } = await metadataCollect();
+  const os = process.env.RUNNER_OS;
 
-  if (!metadata.shouldSkipCi) {
+  if (!shouldSkipCi) {
     await installDependencies();
     await execa('npm', ['run', 'test-unit'], { stdio: 'inherit' });
 
-    metadata.canUploadCoverage
-      ? await cachePaths(
-          ['./coverage'],
-          `coverage-${process.env.RUNNER_OS}-${metadata.commitSha}`
-        )
+    canUploadCoverage
+      ? await cachePaths(['./coverage'], `coverage-${os}-${commitSha}`)
       : core.warning('no code coverage data will be collected for this run');
   } else debug(`skipped component action "${ComponentAction.TestUnit}"`);
 }
