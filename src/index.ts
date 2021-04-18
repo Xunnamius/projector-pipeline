@@ -13,8 +13,9 @@ import type {
 export { ComponentAction };
 
 const debug = debugFactory(`${pkgName}:index`);
-const availableComponentActions = Object.keys(ComponentAction).filter((k) =>
-  Number.isNaN(k)
+const availableComponentActions = Object.keys(ComponentAction).filter(
+  // ? Returns false if the string can be parsed as a number
+  (k) => isNaN((k as unknown) as number) || isNaN(parseFloat(k))
 );
 
 export const PRIVILEGED_DEPS_URI =
