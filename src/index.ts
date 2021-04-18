@@ -13,6 +13,9 @@ import type {
 export { ComponentAction };
 
 const debug = debugFactory(`${pkgName}:index`);
+const availableComponentActions = Object.keys(ComponentAction).filter((k) =>
+  Number.isNaN(k)
+);
 
 export const PRIVILEGED_DEPS_URI =
   'https://github.com/xunnamius/projector-pipeline/raw/main/dist/privileged/package.json';
@@ -34,10 +37,7 @@ export async function invokeComponentAction(
   options = cloneDeep(options);
   let outputs: InvokerResult['outputs'] = {};
 
-  debug(
-    'all available component actions: %O',
-    Object.keys(ComponentAction).filter((k) => Number.isNaN(k))
-  );
+  debug('all available component actions: %O', availableComponentActions);
 
   try {
     debug(`invoking component action "${action}" with initial options: %O`, options);
