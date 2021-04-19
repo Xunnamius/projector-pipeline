@@ -68,10 +68,9 @@ branch deletion.
 [_Unprivileged_][3]. Lints project source via `npm run lint`.
 
 **[`metadata-collect`][31]**\
-[_Unprivileged_][3]. Checks out the repository using [`@actions/checkout`][41], installs
-Node using [`@actions/node`][42], performs initial configurations, collects metadata,
-and uploads it as an artifact for use by various other component actions. Must run
-only in unprivileged contexts.
+[_Unprivileged_][3]. Checks out and configures the repository, installs and configures
+Node, collects metadata, and uploads it as an artifact for use by various other component
+actions. Must run only in unprivileged contexts.
 
 It is usually not necessary to invoke this component action manually in
 workflows that invoke other component actions; this is because the other actions
@@ -84,10 +83,9 @@ invoking action will also be recognized by this action, even if the invoking
 action doesn't recognize any options by itself.
 
 **[`metadata-download`][32]**\
-[_Unprivileged_][3]. Downloads metadata artifact created by `metadata-collect`, checks
-out the repository using [`@actions/checkout`][41] (optionally with the working tree
-deleted), installs Node using [`@actions/node`][42], and performs initial configurations.
-**Can be used in both privileged and unprivileged workflows.**
+[_Unprivileged_][3]. Functionally equivalent to `metadata-collect`, except the metadata
+is downloaded via an artifact created by `metadata-collect`. **Can be used in both
+privileged and unprivileged workflows.**
 
 It is usually not necessary to invoke this component action manually in
 workflows that invoke other component actions; this is because the other actions
