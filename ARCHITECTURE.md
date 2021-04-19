@@ -224,6 +224,9 @@ automatically.
 
 ## Configuring The Pipeline
 
+There are several ways to configure the pipeline. The easiest is through project
+configuration files as they require the least effort to create and maintain.
+
 The pipeline recognizes two configurations files:
 
 - **Global default configuration** is downloaded at the start of every
@@ -233,6 +236,14 @@ The pipeline recognizes two configurations files:
 
 - **Local configuration** is sourced from `.github/pipeline.config.js`, if it
   exists in the repository. See [this example][21] for more details.
+
+For more complex use cases, options unavailable through the configuration files
+can be passed directly to the
+[component action invoker](https://github.com/marketplace/actions/projector-pipeline)
+through the pipeline's GitHub Marketplace Action and your project's workflow
+files. Further, all Marketplace Action functionality is available through the
+[`@xunnamius/projector-pipeline`](https://www.npmjs.com/package/@xunnamius/projector-pipeline)
+npm library directly.
 
 ## Caveats
 

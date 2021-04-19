@@ -69,9 +69,9 @@ branch deletion.
 
 **[`metadata-collect`][31]**\
 [_Unprivileged_][3]. Checks out the repository using [`@actions/checkout`][41], installs
-Node using [`@actions/setup-node`][42], performs initial configurations, collects
-metadata, and uploads it as an artifact for use by various other component actions.
-Must run only in unprivileged contexts.
+Node using [`@actions/node`][42], performs initial configurations, collects metadata,
+and uploads it as an artifact for use by various other component actions. Must run
+only in unprivileged contexts.
 
 It is usually not necessary to invoke this component action manually in
 workflows that invoke other component actions; this is because the other actions
@@ -86,7 +86,7 @@ action doesn't recognize any options by itself.
 **[`metadata-download`][32]**\
 [_Unprivileged_][3]. Downloads metadata artifact created by `metadata-collect`, checks
 out the repository using [`@actions/checkout`][41] (optionally with the working tree
-deleted), installs Node using [`@actions/setup-node`][42], and performs initial configurations.
+deleted), installs Node using [`@actions/node`][42], and performs initial configurations.
 **Can be used in both privileged and unprivileged workflows.**
 
 It is usually not necessary to invoke this component action manually in
@@ -263,7 +263,7 @@ with:
       "checkout": {
         "persistCredentials": true
       },
-      "setupNode": false
+      "node": false
     }
 ```
 
@@ -272,12 +272,13 @@ with:
 This action accepts an `options` JSON string input with the following properties
 and constraints:
 
-| Name              | Type                                      | Default | Description                                                                                                                                                                                                                                                |
-| :---------------- | :---------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `github-token`    | _`string`_                                | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                                                     |
-| `upload-artifact` | _`boolean`_                               | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action.                                                                                         |
-| `checkout`        | _`boolean \| Partial<CheckoutSettings>`_  | `true`  | If _truthy_, `@actions/checkout` is triggered. If `checkout` is a [`CheckoutSettings`-like object][43], it is passed to `@actions/checkout` as configuration. Otherwise, [sensible defaults][43] are used. See also: [configuring the pipeline][23].       |
-| `setupNode`       | _`boolean \| Partial<SetupNodeSettings>`_ | `true`  | If _truthy_, `@actions/setup-node` is triggered. If `setupNode` is a [`SetupNodeSettings`-like object][43], it is passed to `@actions/setup-node` as configuration. Otherwise, [sensible defaults][43] are used. See also: [configuring the pipeline][23]. |
+| Name              | Type                                 | Default | Description                                                                                                                                                                                                                              |
+| :---------------- | :----------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-token`    | _`string`_                           | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                                   |
+| `npm-token`       | _`string`_                           | (none)  | An NPM access token with read-write access to the appropriate package(s).                                                                                                                                                                |
+| `upload-artifact` | _`boolean`_                          | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action.                                                                       |
+| `repository`      | _`boolean \| Partial<CloneOptions>`_ | `true`  | If _truthy_, the runtime repository's working tree will be checked out into the current working directory. If `repository` is a [`CloneOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23]. |
+| `node`            | _`boolean \| Partial<NodeOptions>`_  | `true`  | If _truthy_, node will be downloaded and installed into the runtime and `PATH`. If `node` is a [`NodeOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23].                                   |
 
 See also: [configuring the pipeline][23].
 
@@ -665,5 +666,5 @@ information.
 [39]: #verify-npm
 [40]: #usage-npm-package
 [41]: https://github.com/actions/checkout
-[42]: https://github.com/actions/setup-node
+[42]: https://github.com/actions/node
 [43]: https://github.com/Xunnamius/projector-pipeline/blob/main/types/global.ts
