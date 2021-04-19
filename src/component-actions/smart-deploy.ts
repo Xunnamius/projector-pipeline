@@ -1,8 +1,8 @@
 import { name as pkgName } from '../../package.json';
 import { ComponentActionError } from '../error';
 import { ComponentAction } from '../../types/global';
-import { installPrivilegedDependencies } from '../utils/install-deps';
-import { downloadPaths } from '../utils/actions-artifact';
+import { installPrivilegedDependencies } from '../utils/install';
+import { downloadPaths } from '../utils/github';
 import metadataDownload from './metadata-download';
 import debugFactory from 'debug';
 import core from '@actions/core';
@@ -13,26 +13,19 @@ import type { InvokerOptions } from '../../types/global';
 const debug = debugFactory(`${pkgName}:${ComponentAction.SmartDeploy}`);
 
 export default async function (options: InvokerOptions = {}) {
-  if (!options.npmToken) {
+  if (!options.npmToken)
     throw new ComponentActionError('missing required option `npmToken`');
-  } else core.setSecret(options.npmToken);
 
-  if (!options.githubToken) {
+  if (!options.githubToken)
     throw new ComponentActionError('missing required option `githubToken`');
-  } else core.setSecret(options.githubToken);
 
-  if (!options.gpgPrivateKey) {
+  if (!options.gpgPrivateKey)
     throw new ComponentActionError('missing required option `gpgPrivateKey`');
-  } else core.setSecret(options.gpgPrivateKey);
 
-  if (!options.gpgPassphrase) {
+  if (!options.gpgPassphrase)
     throw new ComponentActionError('missing required option `gpgPassphrase`');
-  } else core.setSecret(options.gpgPassphrase);
 
-  if (options.codecovToken) {
-    debug('using provided codecov token');
-    core.setSecret(options.codecovToken);
-  } else debug('no codecov token provided (OK)');
+  if (!options.codecovToken) debug('no codecov token provided (OK)');
 
   // TODO: do not checkout if only automerge
   // TODO: replace all metadata calls with destructuring style project-wide
@@ -60,4 +53,7 @@ export default async function (options: InvokerOptions = {}) {
     // * Attempt to release
     await execa('npx', ['--no-install', 'semantic-release'], { stdio: 'inherit' });
   } else debug(`skipped component action "${ComponentAction.SmartDeploy}"`);
+
+  // TODO: On auto-merge, don't retry on anything less than 500 except 408, 429,
+  // TODO: and the expected retry codes
 }

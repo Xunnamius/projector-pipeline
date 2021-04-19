@@ -1,6 +1,6 @@
 import { name as pkgName } from '../../package.json';
 import { ComponentAction } from '../../types/global';
-import { installDependencies } from '../utils/install-deps';
+import { installDependencies } from '../utils/install';
 import metadataCollect from './metadata-collect';
 import debugFactory from 'debug';
 import execa from 'execa';

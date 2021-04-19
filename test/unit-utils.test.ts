@@ -1,5 +1,5 @@
 import { name as pkgName } from '../package.json';
-import { asMockedFunction, withMockedOutput } from './setup';
+import { asMockedFunction, withMockedOutput, withMockedEnv } from './setup';
 import { PRIVILEGED_DEPS_URI } from '../src/index';
 import { hashElement as hashFiles } from 'folder-hash';
 import { readFileSync, accessSync } from 'fs';
@@ -9,23 +9,19 @@ import artifact from '@actions/artifact';
 import core from '@actions/core';
 import execa from 'execa';
 
-import * as actionsArtifact from '../src/utils/actions-artifact';
-import * as actionsCache from '../src/utils/actions-cache';
-import * as setupEnv from '../src/utils/setup-env';
-import * as gitCheckout from '../src/utils/git-checkout';
-import * as setupNode from '../src/utils/setup-node';
-import * as installDeps from '../src/utils/install-deps';
+import * as env from '../src/utils/env';
+import * as github from '../src/utils/github';
+import * as install from '../src/utils/install';
 
 import type { ExecaReturnType, Metadata } from '../types/global';
 import type { HashElementNode } from 'folder-hash';
 
-// TODO: remove these
-void actionsArtifact;
-void setupEnv;
-void gitCheckout;
-void setupNode;
+jest.mock('fs', () => {
+  const fs = jest.createMockFromModule<typeof import('fs')>('fs');
+  fs.promises = jest.createMockFromModule<typeof import('fs/promises')>('fs/promises');
+  return fs;
+});
 
-jest.mock('fs');
 jest.mock('execa');
 jest.mock('folder-hash');
 
@@ -44,6 +40,8 @@ jest.mock('@actions/core', () => ({
   exportVariable: jest.fn()
 }));
 
+let runtimeDebugNamespaces: string;
+
 const mockedExeca = asMockedFunction(execa);
 // TODO: retire this line when .changelogrc.js is fixed
 mockedExeca.sync = jest.requireActual('execa').sync;
@@ -51,20 +49,24 @@ mockedExeca.sync = jest.requireActual('execa').sync;
 const mockedReadFileSync = asMockedFunction(readFileSync);
 const mockedAccessSync = asMockedFunction(accessSync);
 const mockedHashFiles = asMockedFunction(hashFiles);
-
 const mockedCacheSaveCache = asMockedFunction(cache.saveCache);
 const mockedCacheRestoreCache = asMockedFunction(cache.restoreCache);
-const mockedArtifactCreate = asMockedFunction(artifact.create);
 const mockedCoreWarning = asMockedFunction(core.warning);
 const mockedCoreSetCommandEcho = asMockedFunction(core.setCommandEcho);
 const mockedCoreExportVariable = asMockedFunction(core.exportVariable);
 
-// TODO: remove these
-void mockedCacheSaveCache;
-void mockedCacheRestoreCache;
-void mockedArtifactCreate;
+const mockedArtifactCreateUploadArtifact = asMockedFunction<
+  ReturnType<typeof artifact.create>['uploadArtifact']
+>();
 
-let runtimeDebugNamespaces: string;
+const mockedArtifactCreateDownloadArtifact = asMockedFunction<
+  ReturnType<typeof artifact.create>['downloadArtifact']
+>();
+
+asMockedFunction(artifact.create).mockReturnValue(({
+  uploadArtifact: mockedArtifactCreateUploadArtifact,
+  downloadArtifact: mockedArtifactCreateDownloadArtifact
+} as unknown) as ReturnType<typeof artifact.create>);
 
 beforeEach(() => {
   // ? If debugging has been enabled for the projector-pipeline repo itself,
@@ -77,19 +79,141 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-describe('actions-artifact', () => {
-  test.todo('me!');
+describe('env', () => {
+  it('enables debug if metadata.debugString is provided', async () => {
+    expect.hasAssertions();
+
+    env.setupEnv(({} as unknown) as Metadata);
+
+    expect(mockedCoreSetCommandEcho).toBeCalledTimes(0);
+    expect(mockedCoreExportVariable).toBeCalledTimes(0);
+    expect(mockedCoreWarning).toBeCalledTimes(0);
+
+    await withMockedEnv(
+      () =>
+        env.setupEnv(({
+          debugString: 'x-y-z:some-namespace'
+        } as unknown) as Metadata),
+      {}
+    );
+
+    expect(mockedCoreSetCommandEcho).toBeCalledTimes(1);
+    expect(mockedCoreExportVariable).toBeCalledTimes(1);
+  });
+
+  it('`debugString==true` enables global debugging', async () => {
+    expect.hasAssertions();
+    expect(debugFactory('x-y-z:some-namespace').enabled).toBeFalse();
+
+    await withMockedEnv(
+      () =>
+        withMockedOutput(() => {
+          env.setupEnv(({ debugString: true } as unknown) as Metadata);
+        }),
+      {}
+    );
+
+    expect(debugFactory('x-y-z:some-namespace').enabled).toBeTrue();
+    expect(debugFactory(`${pkgName}:test`).enabled).toBeTrue();
+    expect(mockedCoreWarning).toBeCalledTimes(0);
+  });
+
+  it('enables debug if process.env.DEBUG is provided', async () => {
+    expect.hasAssertions();
+
+    await withMockedEnv(() => env.setupEnv(({} as unknown) as Metadata), {
+      DEBUG: 'x-y-z:some-namespace'
+    });
+
+    expect(mockedCoreSetCommandEcho).toBeCalledTimes(1);
+    expect(mockedCoreExportVariable).toBeCalledTimes(1);
+    expect(mockedCoreWarning).toBeCalledTimes(1);
+  });
+
+  it('issues warning if debugString does not fully enable debugging', async () => {
+    expect.hasAssertions();
+    env.setupEnv(({ debugString: 'x:y:z' } as unknown) as Metadata);
+    expect(mockedCoreWarning).toBeCalledTimes(1);
+  });
 });
 
-describe('actions-cache', () => {
-  test.todo('me!');
+describe('github', () => {
+  describe('::uploadPaths', () => {
+    it('calls uploadArtifact', async () => {
+      expect.hasAssertions();
+
+      mockedArtifactCreateUploadArtifact.mockReturnValueOnce(
+        (Promise.resolve({
+          artifactItems: { length: 5 },
+          failedItems: { length: 0 }
+        }) as unknown) as ReturnType<typeof mockedArtifactCreateUploadArtifact>
+      );
+
+      await expect(github.uploadPaths([], 'key', 90)).resolves.toBeUndefined();
+      expect(mockedArtifactCreateUploadArtifact).toBeCalledTimes(1);
+    });
+
+    it('throws if no items uploaded and no failed items', async () => {
+      expect.hasAssertions();
+
+      mockedArtifactCreateUploadArtifact.mockReturnValueOnce(
+        (Promise.resolve({
+          artifactItems: { length: 0 },
+          failedItems: { length: 0 }
+        }) as unknown) as ReturnType<typeof mockedArtifactCreateUploadArtifact>
+      );
+
+      await expect(github.uploadPaths([], 'key', 90)).rejects.toMatchObject({
+        message: expect.stringContaining('paths matched 0 items')
+      });
+    });
+
+    it('throws if failed items', async () => {
+      expect.hasAssertions();
+
+      mockedArtifactCreateUploadArtifact.mockReturnValueOnce(
+        (Promise.resolve({
+          artifactItems: { length: 5 },
+          failedItems: { length: 5 }
+        }) as unknown) as ReturnType<typeof mockedArtifactCreateUploadArtifact>
+      );
+
+      await expect(github.uploadPaths([], 'key', 90)).rejects.toMatchObject({
+        message: expect.stringContaining('5 items failed to upload')
+      });
+    });
+  });
+
+  describe('::downloadPaths', () => {
+    it('calls downloadArtifact', async () => {
+      expect.hasAssertions();
+      await expect(github.downloadPaths('key', './destination')).resolves.toBeUndefined();
+      expect(mockedArtifactCreateDownloadArtifact).toBeCalledTimes(1);
+    });
+  });
+
+  describe('::cachePaths', () => {
+    it('calls saveCache', async () => {
+      expect.hasAssertions();
+      await expect(github.cachePaths([], 'key')).resolves.toBeUndefined();
+      expect(mockedCacheSaveCache).toBeCalledTimes(1);
+    });
+  });
+
+  describe('::uncachePaths', () => {
+    it('calls restoreCache and returns boolean', async () => {
+      expect.hasAssertions();
+      await expect(github.uncachePaths([], 'key')).resolves.toBeBoolean();
+      expect(mockedCacheRestoreCache).toBeCalledTimes(1);
+    });
+  });
+
+  it('::cloneRepository', async () => {
+    expect.hasAssertions();
+  });
 });
 
-describe('git-checkout', () => {
-  test.todo('me!');
-});
-
-describe('install-deps', () => {
+describe('install', () => {
   describe('::installPeerDeps', () => {
     it('noop when using npm@>=7', async () => {
       expect.hasAssertions();
@@ -98,7 +222,7 @@ describe('install-deps', () => {
         (Promise.resolve({ stdout: '7.0.0' }) as unknown) as ExecaReturnType
       );
 
-      await expect(installDeps.installPeerDeps()).resolves.toBeUndefined();
+      await expect(install.installPeerDeps()).resolves.toBeUndefined();
       expect(mockedExeca).toBeCalledTimes(1);
       expect(mockedReadFileSync).not.toBeCalled();
     });
@@ -118,7 +242,7 @@ describe('install-deps', () => {
         }
       }`);
 
-      await expect(installDeps.installPeerDeps()).resolves.toBeUndefined();
+      await expect(install.installPeerDeps()).resolves.toBeUndefined();
       expect(mockedReadFileSync).toBeCalledTimes(1);
       expect(mockedExeca).toBeCalledTimes(2);
       expect(mockedExeca).toBeCalledWith(
@@ -143,7 +267,7 @@ describe('install-deps', () => {
         }
       }`);
 
-      await expect(installDeps.installPeerDeps()).resolves.toBeUndefined();
+      await expect(install.installPeerDeps()).resolves.toBeUndefined();
       expect(mockedReadFileSync).toBeCalledTimes(1);
       expect(mockedExeca).toBeCalledTimes(2);
       expect(mockedExeca).toBeCalledWith(
@@ -152,11 +276,7 @@ describe('install-deps', () => {
         { stdio: 'inherit' }
       );
 
-      expect(mockedCoreWarning).toBeCalledWith(
-        expect.stringContaining(
-          'installed peer dependency "package-2" with version specifier "^5.4.3"'
-        )
-      );
+      expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('^5.4.3'));
     });
 
     it('noop with npm@<7 when no peer dependencies', async () => {
@@ -168,7 +288,7 @@ describe('install-deps', () => {
 
       mockedReadFileSync.mockReturnValueOnce('{"name":"dummy-pkg"}');
 
-      await expect(installDeps.installPeerDeps()).resolves.toBeUndefined();
+      await expect(install.installPeerDeps()).resolves.toBeUndefined();
       expect(mockedExeca).toBeCalledTimes(1);
       expect(mockedReadFileSync).toBeCalledTimes(1);
 
@@ -180,7 +300,7 @@ describe('install-deps', () => {
         '{"name":"dummy-pkg","peerDependencies":{}}'
       );
 
-      await expect(installDeps.installPeerDeps()).resolves.toBeUndefined();
+      await expect(install.installPeerDeps()).resolves.toBeUndefined();
       expect(mockedExeca).toBeCalledTimes(2);
       expect(mockedReadFileSync).toBeCalledTimes(2);
     });
@@ -192,7 +312,7 @@ describe('install-deps', () => {
         (Promise.resolve({ stdout: '6.9.8' }) as unknown) as ExecaReturnType
       );
 
-      await expect(installDeps.installPeerDeps()).rejects.toMatchObject({
+      await expect(install.installPeerDeps()).rejects.toMatchObject({
         message: expect.stringContaining('failed to parse')
       });
 
@@ -206,12 +326,12 @@ describe('install-deps', () => {
       expect.hasAssertions();
 
       const uncachePathsSpy = jest
-        .spyOn(actionsCache, 'uncachePaths')
+        .spyOn(github, 'uncachePaths')
         .mockImplementationOnce(() => Promise.resolve(false))
         .mockImplementationOnce(() => Promise.resolve(true));
 
       const installPeerDepsSpy = jest
-        .spyOn(installDeps, 'installPeerDeps')
+        .spyOn(install, 'installPeerDeps')
         .mockImplementationOnce(() => Promise.resolve())
         .mockImplementationOnce(() => Promise.resolve());
 
@@ -220,15 +340,15 @@ describe('install-deps', () => {
         .mockImplementationOnce(() => Promise.resolve({ hash: 'x' } as HashElementNode))
         .mockImplementationOnce(() => Promise.resolve({ hash: 'x' } as HashElementNode));
 
-      await expect(installDeps.installDependencies()).resolves.toBeUndefined();
+      await expect(install.installDependencies()).resolves.toBeUndefined();
       expect(mockedExeca).toBeCalledTimes(1);
-      expect(installDeps.installPeerDeps).toBeCalledTimes(1);
+      expect(install.installPeerDeps).toBeCalledTimes(1);
       expect(uncachePathsSpy).toBeCalledTimes(1);
       expect(mockedHashFiles).toBeCalledTimes(2);
 
-      await expect(installDeps.installDependencies()).resolves.toBeUndefined();
+      await expect(install.installDependencies()).resolves.toBeUndefined();
       expect(mockedExeca).toBeCalledTimes(2);
-      expect(installDeps.installPeerDeps).toBeCalledTimes(2);
+      expect(install.installPeerDeps).toBeCalledTimes(2);
       expect(uncachePathsSpy).toBeCalledTimes(2);
       expect(mockedHashFiles).toBeCalledTimes(3);
 
@@ -242,7 +362,7 @@ describe('install-deps', () => {
       expect.hasAssertions();
 
       const installPeerDepsSpy = jest
-        .spyOn(installDeps, 'installPeerDeps')
+        .spyOn(install, 'installPeerDeps')
         .mockImplementationOnce(() => Promise.resolve())
         .mockImplementationOnce(() => Promise.resolve());
 
@@ -250,8 +370,8 @@ describe('install-deps', () => {
         throw new Error('(mock) package.json not found');
       });
 
-      await expect(installDeps.installPrivilegedDependencies()).resolves.toBeUndefined();
-      expect(installDeps.installPeerDeps).toBeCalledTimes(1);
+      await expect(install.installPrivilegedDependencies()).resolves.toBeUndefined();
+      expect(install.installPeerDeps).toBeCalledTimes(1);
       expect(mockedAccessSync).toBeCalledTimes(1);
       expect(mockedExeca).toBeCalledTimes(2);
       expect(mockedExeca).toBeCalledWith('npm', ['install'], { stdio: 'inherit' });
@@ -267,56 +387,10 @@ describe('install-deps', () => {
     it('throws if package.json already exists', async () => {
       expect.hasAssertions();
 
-      await expect(installDeps.installPrivilegedDependencies()).rejects.toMatchObject({
+      await expect(install.installPrivilegedDependencies()).rejects.toMatchObject({
         message: expect.stringContaining('refusing to overwrite existing package.json')
       });
       expect(mockedAccessSync).toBeCalledTimes(1);
     });
   });
-});
-
-describe('setup-env', () => {
-  it('enables debug only if debugString is provided', async () => {
-    expect.hasAssertions();
-
-    setupEnv.setupEnv(({} as unknown) as Metadata);
-
-    expect(mockedCoreSetCommandEcho).toBeCalledTimes(0);
-    expect(mockedCoreExportVariable).toBeCalledTimes(0);
-    expect(mockedCoreWarning).toBeCalledTimes(0);
-
-    await withMockedOutput(() => {
-      setupEnv.setupEnv(({ debugString: `${pkgName}:*` } as unknown) as Metadata);
-    });
-
-    expect(mockedCoreSetCommandEcho).toBeCalledTimes(1);
-    expect(mockedCoreExportVariable).toBeCalledTimes(1);
-    expect(mockedCoreWarning).toBeCalledTimes(0);
-  });
-
-  it('issues warning if debugString does not fully enable debugging', async () => {
-    expect.hasAssertions();
-
-    setupEnv.setupEnv(({ debugString: 'x:y:z' } as unknown) as Metadata);
-
-    expect(mockedCoreSetCommandEcho).toBeCalledTimes(0);
-    expect(mockedCoreExportVariable).toBeCalledTimes(0);
-    expect(mockedCoreWarning).toBeCalledTimes(1);
-  });
-
-  it('`debugString==true` enables package-wide debugging', async () => {
-    expect.hasAssertions();
-    expect(debugFactory('x-y-z:some-namespace').enabled).toBeFalse();
-
-    setupEnv.setupEnv(({
-      debugString: true,
-      packageName: 'x-y-z'
-    } as unknown) as Metadata);
-
-    expect(debugFactory('x-y-z:some-namespace').enabled).toBeTrue();
-  });
-});
-
-describe('setup-node', () => {
-  test.todo('me!');
 });

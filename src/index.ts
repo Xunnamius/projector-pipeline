@@ -14,8 +14,8 @@ export { ComponentAction };
 
 const debug = debugFactory(`${pkgName}:index`);
 const availableComponentActions = Object.keys(ComponentAction).filter(
-  // ? Returns false if the string can be parsed as a number
-  (k) => isNaN((k as unknown) as number) || isNaN(parseFloat(k))
+  // ? Returns false if the non-whitespace string can be parsed as a number
+  (k) => isNaN((k as unknown) as number)
 );
 
 export const PRIVILEGED_DEPS_URI =
@@ -23,9 +23,7 @@ export const PRIVILEGED_DEPS_URI =
 export const GLOBAL_PIPELINE_CONFIG_URI =
   'https://github.com/xunnamius/projector-pipeline/raw/main/dist/pipeline.config.js';
 export const UPLOADED_METADATA_TMPDIR = '/tmp/uploaded.meta.json';
-export const GLOBAL_METADATA_TMPDIR = '/tmp/global.meta.json';
-
-// TODO: leave if-debug warning in workflow files (move under metadata-*)
+export const GIT_MIN_VERSION = '2.18';
 
 /**
  * Invokes the specified component `action` with `options`, if given. Throws on

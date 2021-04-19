@@ -1,26 +1,20 @@
 import { name as pkgName } from '../../package.json';
 import { ComponentAction } from '../../types/global';
 import { ComponentActionError } from '../error';
-import { setupEnv } from '../utils/setup-env';
+import { setupEnv } from '../utils/env';
 import { context } from '@actions/github';
 import { readFileSync, writeFileSync } from 'fs';
-import { uploadPaths } from '../utils/actions-artifact';
+import { cloneRepository, uploadPaths } from '../utils/github';
+import { fetch } from 'isomorphic-json-fetch';
 import debugFactory from 'debug';
 import core from '@actions/core';
 import execa from 'execa';
-import os from 'os';
 
-import {
-  GLOBAL_PIPELINE_CONFIG_URI,
-  GLOBAL_METADATA_TMPDIR,
-  UPLOADED_METADATA_TMPDIR
-} from '../index';
+import { GLOBAL_PIPELINE_CONFIG_URI, UPLOADED_METADATA_TMPDIR } from '../index';
 
 import type {
-  CreateMutable,
   LocalPipelineConfig,
   GlobalPipelineConfig,
-  CheckoutOptions,
   InvokerOptions,
   Metadata
 } from '../../types/global';
@@ -30,36 +24,32 @@ const debug = debugFactory(`${pkgName}:${ComponentAction.MetadataCollect}`);
 export default async function (options: InvokerOptions = {}): Promise<Metadata> {
   if (!options.githubToken) {
     throw new ComponentActionError('missing required option `githubToken`');
-  } else core.setSecret(options.githubToken);
-
-  options.uploadArtifact = !!options.uploadArtifact;
-  options.checkout = options.checkout ?? true;
-  options.setupNode = options.setupNode ?? true;
-  options.enableFastSkips = options.enableFastSkips ?? true;
-
-  if (options.checkout) {
-    debug(`running @actions/checkout`);
-
-    const opts = (options.checkout =
-      typeof options.checkout != 'boolean' ? options.checkout : {});
-
-    (core.getInput as CreateMutable<typeof core.getInput>) = (
-      name: keyof CheckoutOptions
-    ) => opts[name]?.toString();
-
-    // TODO: fixme
-    // await getSource(gitSourceSettings);
   }
 
-  debug(`downloading global default metadata from ${GLOBAL_PIPELINE_CONFIG_URI}`);
+  options.uploadArtifact = !!options.uploadArtifact;
+  options.repository = options.repository ?? true;
+  options.node = options.node ?? true;
+  options.enableFastSkips = options.enableFastSkips ?? true;
 
-  await execa(
-    'curl',
-    ['-o', GLOBAL_METADATA_TMPDIR, '-LJO', GLOBAL_PIPELINE_CONFIG_URI],
-    {
-      stdio: 'inherit'
-    }
-  );
+  const currentBranch = context.ref.split('/').slice(2).join('/');
+
+  if (options.repository) {
+    debug(`cloning repository`);
+    await cloneRepository(
+      (options.repository = {
+        branchOrTag: currentBranch,
+        checkoutRef: context.sha,
+        fetchDepth: 1,
+        repositoryName: context.repo.repo,
+        repositoryOwner: context.repo.owner,
+        repositoryPath: '.',
+        ...(typeof options.repository != 'boolean' ? options.repository : {})
+      }),
+      options.githubToken
+    );
+  } else debug('skipped cloning repository');
+
+  debug(`downloading global default metadata from ${GLOBAL_PIPELINE_CONFIG_URI}`);
 
   let globalConfig: GlobalPipelineConfig;
   let localConfig: Partial<LocalPipelineConfig> = {};
@@ -67,9 +57,13 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
   debug(`coalescing pipeline configurations`);
 
   try {
-    globalConfig = JSON.parse(
-      readFileSync(GLOBAL_METADATA_TMPDIR, { encoding: 'utf-8' })
-    );
+    const { json } = await fetch<GlobalPipelineConfig>(GLOBAL_PIPELINE_CONFIG_URI, {
+      rejects: true
+    });
+
+    if (!json) {
+      throw new Error('network request succeeded but parsed response was undefined');
+    } else globalConfig = json;
   } catch (e) {
     throw new ComponentActionError(`failed to parse global pipeline config: ${e}`);
   }
@@ -99,7 +93,7 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
     webpackTestVersions:
       localConfig.webpackTestVersions || globalConfig.webpackTestVersions,
     commitSha: context.sha,
-    currentBranch: context.ref.split('/').slice(2).join('/'),
+    currentBranch,
     prNumber: context.payload.pull_request?.number || null,
     canRelease: false, // ? Determined later
     canAutomerge: false, // ? Determined later
@@ -162,25 +156,24 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
     context.eventName == 'pull_request' &&
     !context.payload.pull_request?.draft;
 
-  if (options.setupNode) {
-    debug(`running @actions/setup-node`);
+  if (options.node) {
+    debug(`running @actions/node`);
 
-    options.setupNode = typeof options.setupNode != 'boolean' ? options.setupNode : {};
+    options.node = typeof options.node != 'boolean' ? options.node : {};
 
     // TODO:
-    // ? See: https://github.com/actions/setup-node/blob/main/src/main.ts
-    void os;
+    // ? See: https://github.com/actions/node/blob/main/src/main.ts
     // const version =
-    //   options.setupNode.nodeVersion ||
-    //   options.setupNode.version ||
+    //   options.node.nodeVersion ||
+    //   options.node.version ||
     //   metadata.nodeCurrentVersion;
 
     // const info = await getNode(
     //   version,
-    //   !!options.setupNode.stable,
-    //   !!options.setupNode.checkLatest,
-    //   !options.setupNode.token ? undefined : `token ${options.setupNode.token}`,
-    //   options.setupNode.architecture || os.arch()
+    //   !!options.node.stable,
+    //   !!options.node.checkLatest,
+    //   !options.node.token ? undefined : `token ${options.node.token}`,
+    //   options.node.architecture || os.arch()
     // );
 
     // debug(`node installer info for version "${version}": %O`, info);
@@ -222,8 +215,7 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
 
   if (metadata.hasExternals != metadata.hasIntegrationExternals) {
     throw new ComponentActionError(
-      'expected both 1) `build-externals` and 2) `test-integration-externals` ' +
-        'scripts to be defined in package.json'
+      'expected both 1) `build-externals` and 2) `test-integration-externals` scripts to be defined in package.json'
     );
   } else if (!metadata.hasDocs) {
     core.warning('no `build-docs` script defined in package.json');

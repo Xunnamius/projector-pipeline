@@ -46,34 +46,69 @@ export type ComponentActionFunction = (
 ) => Promise<Metadata | Record<string, unknown> | void>;
 
 /**
- * Settings expected by `@actions/checkout`.
- *
- * If `bareWorkingTree` is true, all files in the working tree are destroyed.
- * This is useful when also downloading and unpacking the `build` component
- * action's resultant artifact, thus replacing the old working tree safely (e.g.
- * without running `npm install`) and in its entirely (i.e. ready for further
- * git commands).
- *
- * See also: https://github.com/actions/checkout/blob/main/src/main.ts
+ * Options expected by the `cloneRepository` utility function. Defaults are set
+ * by the calling function and not `cloneRepository` itself.
  */
-export type CheckoutOptions = { bareWorkingTree: boolean }; // TODO: finish this
-
-/**
- * Settings expected by `@actions/setup-node`.
- *
- * See also: https://github.com/actions/setup-node/blob/main/src/main.ts
- */
-export type SetupNodeOptions = {
-  nodeVersion?: string;
-  version?: string;
-  architecture?: string;
-  token?: string;
-  stable?: boolean;
-  checkLatest?: boolean;
+export type CloneOptions = {
+  /**
+   * The location on disk to where the repository will be cloned.
+   *
+   * @default (current working directory)
+   */
+  repositoryPath: string;
+  /**
+   * The clone target repository's namespace (owner).
+   *
+   * @default (the current repo name)
+   */
+  repositoryOwner: string;
+  /**
+   * The clone target repository's name.
+   *
+   * @default (the current repo name)
+   */
+  repositoryName: string;
+  /**
+   * The ref (branch or tag) to fetch. Use `checkoutRef` to checkout one of the
+   * refs under this branch while cloning.
+   *
+   * @default metadata.currentBranch
+   */
+  branchOrTag: string;
+  /**
+   * The ref (commit, branch, tag, etc) to checkout or `false` if the working
+   * tree should not be checked out after cloning the repo.
+   *
+   * This is useful when downloading and unpacking the `build` component
+   * action's resultant artifact and replacing the old working tree safely (e.g.
+   * without running `npm install`) and in its entirely (i.e. ready for further
+   * git commands).
+   *
+   * @default metadata.commitSha
+   */
+  checkoutRef: string | false;
+  /**
+   * The depth when fetching. `fetchDepth<=0` means no limit.
+   *
+   * @default 1
+   */
+  fetchDepth: number;
 };
 
 /**
- * Local pipeline configuration settings.
+ * Options expected by the `setupNode` utility function. Defaults, if any, are
+ * set by the calling function and not `cloneRepository` itself.
+ */
+export type NodeOptions = {
+  /**
+   * A semver string. The highest version of Node satisfying this string will be
+   * installed and configured.
+   */
+  nodeVersion: string;
+};
+
+/**
+ * Local pipeline configuration options.
  */
 export type LocalPipelineConfig = {
   /**
@@ -146,7 +181,7 @@ export type LocalPipelineConfig = {
 };
 
 /**
- * Global pipeline configuration settings.
+ * Global pipeline configuration options.
  */
 export type GlobalPipelineConfig = {
   /**
@@ -214,22 +249,20 @@ export type InvokerOptions = {
   enableFastSkips?: boolean;
 
   /**
-   * If `true` or an instance of `CheckoutSettings`, a repository will be
-   * checked out using `@actions/checkout` action. See the `pipeline.config.js`
-   * files for configuration details.
+   * If `true` or an instance of `CloneOptions`, a repository will be checked
+   * out. See the `pipeline.config.js` files for configuration details.
    *
    * @default true
    */
-  checkout?: boolean | Partial<CheckoutOptions>;
+  repository?: boolean | Partial<CloneOptions>;
 
   /**
-   * If `true` or an instance of `SetupNodeSettings`, node will be
-   * installed and configured by the `@actions/checkout` action. See the
-   * `pipeline.config.js` files for configuration details.
+   * If `true` or an instance of `NodeOptions`, node will be installed and
+   * configured. See the `pipeline.config.js` files for configuration details.
    *
    * @default true
    */
-  setupNode?: boolean | Partial<SetupNodeOptions>;
+  node?: boolean | Partial<NodeOptions>;
 
   /**
    * Contains the NPM token. Usually `${{ secrets.NPM_TOKEN }}` is the correct

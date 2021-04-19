@@ -1,7 +1,7 @@
 import { name as pkgName } from '../../package.json';
 import { ComponentAction } from '../../types/global';
-import { installDependencies } from '../utils/install-deps';
-import { cachePaths } from '../utils/actions-cache';
+import { installDependencies } from '../utils/install';
+import { cachePaths } from '../utils/github';
 import metadataCollect from './metadata-collect';
 import debugFactory from 'debug';
 import core from '@actions/core';

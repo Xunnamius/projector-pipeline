@@ -9,27 +9,20 @@ jest.mock('execa');
 
 jest.mock('@actions/core', () => ({
   warning: jest.fn(),
-  setSecret: jest.fn()
+  info: jest.fn()
 }));
 
-jest.mock('../src/utils/actions-artifact');
-jest.mock('../src/utils/actions-cache');
-jest.mock('../src/utils/git-checkout');
-jest.mock('../src/utils/install-deps');
-jest.mock('../src/utils/setup-env');
-jest.mock('../src/utils/setup-node');
+jest.mock('../src/utils/env');
+jest.mock('../src/utils/github');
+jest.mock('../src/utils/install');
 
 const mockedExeca = asMockedFunction(execa);
 // TODO: retire this line when .changelogrc.js is fixed
 mockedExeca.sync = jest.requireActual('execa').sync;
 
+const mockedCoreInfo = asMockedFunction(core.info);
 const mockedCoreWarning = asMockedFunction(core.warning);
-const mockedSetSecret = asMockedFunction(core.setSecret);
 let mockMetadata: Partial<Metadata> = {};
-
-// TODO: remove these
-void mockedCoreWarning;
-void mockedSetSecret;
 
 beforeAll(() => {
   jest.mock('../src/component-actions/metadata-collect', () => () =>

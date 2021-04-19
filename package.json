@@ -45,6 +45,7 @@
     "prepare": "if [ -z \"$CI\" ]; then npx husky install; else echo 'skipped installing husky git hooks'; fi",
     "test": "npm run test-unit --",
     "test-integration": "BABEL_ENV=test jest $JEST_CLI --testPathIgnorePatterns test/unit-*.test.ts dist",
+    "test-integration-client": "BABEL_ENV=test jest $JEST_CLI test/integration-client*.test.ts --testPathIgnorePatterns dist",
     "test-integration-node": "BABEL_ENV=test jest $JEST_CLI test/integration-node*.test.ts --testPathIgnorePatterns dist",
     "test-integration-webpack": "BABEL_ENV=test jest $JEST_CLI test/integration-webpack*.test.ts --testPathIgnorePatterns dist",
     "test-unit": "BABEL_ENV=test jest $JEST_CLI --coverage --collectCoverageFrom 'src/**/*.ts' --collectCoverageFrom 'lib/**/*.ts' --collectCoverageFrom 'external-scripts/**/*.ts' --testPathIgnorePatterns test/integration-*.test.ts dist"
@@ -54,11 +55,13 @@
     "@actions/cache": "^1.0.6",
     "@actions/core": "^1.2.6",
     "@actions/github": "^4.0.0",
+    "@actions/tool-cache": "^1.6.1",
     "babel-plugin-replace-ts-export-assignment": "^0.0.2",
     "clone-deep": "^4.0.1",
     "debug": "^4.3.1",
     "execa": "^5.0.0",
     "folder-hash": "^4.0.1",
+    "isomorphic-json-fetch": "^1.0.13",
     "micromatch": "^4.0.2",
     "semver": "^7.3.5"
   },

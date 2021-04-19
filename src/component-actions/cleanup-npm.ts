@@ -15,7 +15,7 @@ const debug = debugFactory(`${pkgName}:${ComponentAction.CleanupNpm}`);
 export default async function ({ npmToken }: InvokerOptions = {}) {
   if (!npmToken) {
     throw new ComponentActionError('missing required option `npmToken`');
-  } else core.setSecret(npmToken);
+  }
 
   const { shouldSkipCi, releaseBranchConfig } = await metadataCollect();
 
