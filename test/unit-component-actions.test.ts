@@ -55,10 +55,8 @@ describe(`${ComponentAction.Audit}`, () => {
     await expect(action()).resolves.toBeUndefined();
     expect(mockedExeca).toBeCalledWith(
       'npm',
-      ['audit', '--audit-level=test-audit-level'],
-      {
-        stdio: 'inherit'
-      }
+      expect.arrayContaining(['audit', '--audit-level=test-audit-level']),
+      expect.anything()
     );
   });
 

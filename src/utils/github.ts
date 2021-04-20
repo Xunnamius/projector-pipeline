@@ -5,7 +5,6 @@ import { resolve } from 'path';
 import debugFactory from 'debug';
 import execa from 'execa';
 import semver from 'semver';
-import core from '@actions/core';
 import artifact from '@actions/artifact';
 import cache from '@actions/cache';
 
@@ -102,7 +101,7 @@ export async function cloneRepository(
   const depth = options.fetchDepth > 0 ? ['--depth', options.fetchDepth.toString()] : [];
   const checkout = !options.checkoutRef ? ['--no-checkout'] : [];
 
-  core.info(
+  debug(
     `cloning GitHub repository: ${repositoryName}
     from: ${repositoryUri}
     to directory: ${repositoryPath}
@@ -139,6 +138,6 @@ export async function cloneRepository(
   // ? Checkout options.checkoutRef
   if (options.checkoutRef && options.branchOrTag != options.checkoutRef) {
     debug(`checking out ref: ${options.checkoutRef}`);
-    await execa('git', ['checkout', options.checkoutRef]);
+    await execa('git', ['checkout', options.checkoutRef], { stdio: 'inherit' });
   } else debug('(skipped explicit checkout)');
 }

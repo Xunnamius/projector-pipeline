@@ -2,12 +2,15 @@ import { name as pkgName } from '../package.json';
 import { asMockedFunction, withMockedOutput, withMockedEnv } from './setup';
 import { PRIVILEGED_DEPS_URI } from '../src/index';
 import { hashElement as hashFiles } from 'folder-hash';
-import { readFileSync, accessSync } from 'fs';
-import debugFactory from 'debug';
+import { readFileSync, accessSync, writeFileSync } from 'fs';
+import { resolve } from 'path';
 import cache from '@actions/cache';
 import artifact from '@actions/artifact';
 import core from '@actions/core';
+import toolCache from '@actions/tool-cache';
+import debugFactory from 'debug';
 import execa from 'execa';
+import os from 'os';
 
 import * as env from '../src/utils/env';
 import * as github from '../src/utils/github';
@@ -22,6 +25,7 @@ jest.mock('fs', () => {
   return fs;
 });
 
+jest.mock('path');
 jest.mock('execa');
 jest.mock('folder-hash');
 
@@ -30,30 +34,45 @@ jest.mock('@actions/cache', () => ({
   restoreCache: jest.fn()
 }));
 
+jest.mock('@actions/tool-cache', () => ({
+  find: jest.fn(),
+  downloadTool: jest.fn(),
+  extractTar: jest.fn(),
+  cacheDir: jest.fn()
+}));
+
 jest.mock('@actions/artifact', () => ({
   create: jest.fn()
 }));
 
 jest.mock('@actions/core', () => ({
   warning: jest.fn(),
+  addPath: jest.fn(),
   setCommandEcho: jest.fn(),
   exportVariable: jest.fn()
 }));
 
 let runtimeDebugNamespaces: string;
 
+const mockedResolve = asMockedFunction(resolve);
 const mockedExeca = asMockedFunction(execa);
 // TODO: retire this line when .changelogrc.js is fixed
 mockedExeca.sync = jest.requireActual('execa').sync;
 
 const mockedReadFileSync = asMockedFunction(readFileSync);
+const mockedWriteFileSync = asMockedFunction(writeFileSync);
 const mockedAccessSync = asMockedFunction(accessSync);
 const mockedHashFiles = asMockedFunction(hashFiles);
 const mockedCacheSaveCache = asMockedFunction(cache.saveCache);
 const mockedCacheRestoreCache = asMockedFunction(cache.restoreCache);
 const mockedCoreWarning = asMockedFunction(core.warning);
 const mockedCoreSetCommandEcho = asMockedFunction(core.setCommandEcho);
+const mockedCoreAddPath = asMockedFunction(core.addPath);
 const mockedCoreExportVariable = asMockedFunction(core.exportVariable);
+const mockedToolCacheFind = asMockedFunction(toolCache.find);
+const mockedToolCacheDownloadTool = asMockedFunction(toolCache.downloadTool);
+const mockedToolCacheExtractTar = asMockedFunction(toolCache.extractTar);
+const mockedToolCacheCacheDir = asMockedFunction(toolCache.cacheDir);
 
 const mockedArtifactCreateUploadArtifact = asMockedFunction<
   ReturnType<typeof artifact.create>['uploadArtifact']
@@ -101,7 +120,7 @@ describe('env', () => {
     expect(mockedCoreExportVariable).toBeCalledTimes(1);
   });
 
-  it('`debugString==true` enables global debugging', async () => {
+  it('debugString == true enables global debugging', async () => {
     expect.hasAssertions();
     expect(debugFactory('x-y-z:some-namespace').enabled).toBeFalse();
 
@@ -208,8 +227,288 @@ describe('github', () => {
     });
   });
 
-  it('::cloneRepository', async () => {
-    expect.hasAssertions();
+  describe('::cloneRepository', () => {
+    it('successfully clones a repository', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: '999999.0.0' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType);
+
+      mockedResolve.mockReturnValueOnce('/resolved/repository/path');
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: 'main',
+            fetchDepth: 1,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          'github-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(3);
+      expect(mockedResolve).toBeCalledTimes(1);
+
+      expect(mockedExeca).toBeCalledWith(
+        'git',
+        expect.arrayContaining([
+          'main',
+          '1',
+          'https://github-token@github.com/MxRepoOwner/my-repo.git',
+          '/resolved/repository/path'
+        ]),
+        expect.anything()
+      );
+    });
+
+    it('successfully clones a repository wrt options.fetchDepth', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: '999999.0.0' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType);
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: 'main',
+            fetchDepth: 12345,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          'github-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(3);
+      expect(mockedExeca).toBeCalledWith(
+        'git',
+        expect.arrayContaining(['--depth', '12345']),
+        expect.anything()
+      );
+    });
+
+    it('repository is bare (--no-checkout) if options.checkoutRef == false', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: '999999.0.0' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType);
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: false,
+            fetchDepth: 1,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          'github-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(3);
+      expect(mockedExeca).toBeCalledWith(
+        'git',
+        expect.arrayContaining(['--no-checkout']),
+        expect.anything()
+      );
+    });
+
+    it('checks out ref only if non-false options.checkoutRef != options.branchOrTag', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: '999999.0.0' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType);
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: 'canary',
+            fetchDepth: 1,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          'github-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(4);
+      expect(mockedExeca).toBeCalledWith(
+        'git',
+        expect.arrayContaining(['checkout', 'canary']),
+        expect.anything()
+      );
+    });
+
+    it('does not throw if we cannot turn off gc', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: '999999.0.0' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce(
+          (Promise.reject('git config command failed') as unknown) as ExecaReturnType
+        );
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: 'canary',
+            fetchDepth: 1,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          'github-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(4);
+    });
+
+    it('functions properly without github-token', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: '999999.0.0' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType);
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: 'canary',
+            fetchDepth: 1,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          undefined
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(4);
+      expect(mockedExeca).toBeCalledWith(
+        'git',
+        expect.arrayContaining(['https://github.com/MxRepoOwner/my-repo.git']),
+        expect.anything()
+      );
+    });
+
+    it('fetches complete history when options.fetchDepth <= 0', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: '999999.0.0' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: '999999.0.0' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType)
+        .mockReturnValueOnce((Promise.resolve() as unknown) as ExecaReturnType);
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: 'main',
+            fetchDepth: 0,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          undefined
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(3);
+      expect(mockedExeca).not.toBeCalledWith(
+        'git',
+        expect.arrayContaining(['--depth']),
+        expect.anything()
+      );
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: 'main',
+            fetchDepth: -999,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          undefined
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(6);
+      expect(mockedExeca).not.toBeCalledWith(
+        'git',
+        expect.arrayContaining(['--depth']),
+        expect.anything()
+      );
+    });
+
+    it('throws if system git version too low', async () => {
+      expect.hasAssertions();
+
+      mockedExeca.mockReturnValueOnce(
+        (Promise.resolve({ stdout: '1.2.34' }) as unknown) as ExecaReturnType
+      );
+
+      await expect(
+        github.cloneRepository(
+          {
+            branchOrTag: 'main',
+            checkoutRef: 'main',
+            fetchDepth: 1,
+            repositoryName: 'my-repo',
+            repositoryOwner: 'MxRepoOwner',
+            repositoryPath: 'repository/path'
+          },
+          'github-token'
+        )
+      ).rejects.toMatchObject({
+        message: expect.stringContaining('git version 1.2.34 is below')
+      });
+
+      expect(mockedExeca).toBeCalledTimes(1);
+    });
   });
 });
 
@@ -247,8 +546,12 @@ describe('install', () => {
       expect(mockedExeca).toBeCalledTimes(2);
       expect(mockedExeca).toBeCalledWith(
         'npm',
-        ['install', '--no-save', 'package-1@>=9.5.x package-2@>=5.4.3'],
-        { stdio: 'inherit' }
+        expect.arrayContaining([
+          'install',
+          '--no-save',
+          'package-1@>=9.5.x package-2@>=5.4.3'
+        ]),
+        expect.anything()
       );
     });
 
@@ -272,8 +575,12 @@ describe('install', () => {
       expect(mockedExeca).toBeCalledTimes(2);
       expect(mockedExeca).toBeCalledWith(
         'npm',
-        ['install', '--no-save', 'package-1@>=9.5.x package-2@^5.4.3'],
-        { stdio: 'inherit' }
+        expect.arrayContaining([
+          'install',
+          '--no-save',
+          'package-1@>=9.5.x package-2@^5.4.3'
+        ]),
+        expect.anything()
       );
 
       expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('^5.4.3'));
@@ -371,14 +678,21 @@ describe('install', () => {
       });
 
       await expect(install.installPrivilegedDependencies()).resolves.toBeUndefined();
+
       expect(install.installPeerDeps).toBeCalledTimes(1);
       expect(mockedAccessSync).toBeCalledTimes(1);
       expect(mockedExeca).toBeCalledTimes(2);
-      expect(mockedExeca).toBeCalledWith('npm', ['install'], { stdio: 'inherit' });
+
+      expect(mockedExeca).toBeCalledWith(
+        'npm',
+        expect.arrayContaining(['install']),
+        expect.anything()
+      );
+
       expect(mockedExeca).toBeCalledWith(
         'curl',
-        ['-o', 'package.json', '-L', PRIVILEGED_DEPS_URI],
-        { stdio: 'inherit' }
+        expect.arrayContaining(['-o', 'package.json', '-L', PRIVILEGED_DEPS_URI]),
+        expect.anything()
       );
 
       installPeerDepsSpy.mockRestore();
@@ -390,7 +704,201 @@ describe('install', () => {
       await expect(install.installPrivilegedDependencies()).rejects.toMatchObject({
         message: expect.stringContaining('refusing to overwrite existing package.json')
       });
+
       expect(mockedAccessSync).toBeCalledTimes(1);
+    });
+  });
+  describe('::installNode', () => {
+    it('throws if no latest node version from npm', async () => {
+      expect.hasAssertions();
+
+      mockedExeca.mockReturnValueOnce(
+        (Promise.resolve({ stdout: '' }) as unknown) as ExecaReturnType
+      );
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          'npm-token'
+        )
+      ).rejects.toMatchObject({
+        message: expect.stringContaining(
+          'unable to determine latest node version relative to semver "x.y.z"'
+        )
+      });
+
+      expect(mockedExeca).toBeCalledTimes(1);
+      expect(mockedToolCacheFind).not.toBeCalled();
+    });
+
+    it('handles singular latest node version from npm', async () => {
+      expect.hasAssertions();
+
+      mockedExeca.mockReturnValueOnce(
+        (Promise.resolve({ stdout: 'r.s.t' }) as unknown) as ExecaReturnType
+      );
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          'npm-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(1);
+      expect(mockedToolCacheFind).toBeCalledWith('node', 'r.s.t', expect.anything());
+    });
+
+    it('handles plural latest node version from npm', async () => {
+      expect.hasAssertions();
+
+      mockedExeca.mockReturnValueOnce(
+        (Promise.resolve({
+          stdout:
+            "pkg@a.b.c 'a.b.c'\npkg@d.e.f 'd.e.f'\npkg@g.h.i 'g.h.i'\npkg@r.s.t 'r.s.t'"
+        }) as unknown) as ExecaReturnType
+      );
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          'npm-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(1);
+      expect(mockedToolCacheFind).toBeCalledWith('node', 'r.s.t', expect.anything());
+    });
+
+    it('only downloads node if not found in tool cache', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: 'r.s.t' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: 'u.v.w' }) as unknown) as ExecaReturnType
+        );
+
+      mockedToolCacheFind.mockReturnValueOnce('').mockReturnValueOnce('/path/to/node');
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          'npm-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(1);
+      expect(mockedToolCacheExtractTar).toBeCalledTimes(1);
+      expect(mockedToolCacheCacheDir).toBeCalledTimes(1);
+      expect(mockedToolCacheDownloadTool).toBeCalledWith(
+        `https://nodejs.org/dist/vr.s.t/node-vr.s.t-${os.platform()}-${os.arch()}.tar.gz`
+      );
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          'npm-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(2);
+      expect(mockedToolCacheFind).toBeCalledTimes(2);
+      expect(mockedToolCacheExtractTar).toBeCalledTimes(1);
+      expect(mockedToolCacheCacheDir).toBeCalledTimes(1);
+      expect(mockedToolCacheDownloadTool).toBeCalledTimes(1);
+    });
+
+    it('always adds node to PATH', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: 'r.s.t' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: 'r.s.t' }) as unknown) as ExecaReturnType
+        );
+
+      mockedToolCacheCacheDir.mockReturnValueOnce(Promise.resolve('/returned/path'));
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          'npm-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(1);
+      expect(mockedCoreAddPath).toBeCalledWith('/returned/path');
+
+      mockedToolCacheFind.mockReturnValueOnce('/cached/path');
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          'npm-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedToolCacheCacheDir).toBeCalledTimes(1);
+      expect(mockedExeca).toBeCalledTimes(2);
+      expect(mockedCoreAddPath).toBeCalledWith('/cached/path');
+    });
+
+    it('writes auth info to ~/.npmrc only if npm-token is provided', async () => {
+      expect.hasAssertions();
+
+      mockedExeca
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: 'r.s.t' }) as unknown) as ExecaReturnType
+        )
+        .mockReturnValueOnce(
+          (Promise.resolve({ stdout: 'r.s.t' }) as unknown) as ExecaReturnType
+        );
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          'npm-x-token'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(1);
+      expect(mockedWriteFileSync).toBeCalledWith(
+        '~/.npmrc',
+        expect.stringContaining('npm-x-token')
+      );
+
+      await expect(
+        install.installNode(
+          {
+            nodeVersion: 'x.y.z'
+          },
+          undefined
+        )
+      ).resolves.toBeUndefined();
+
+      expect(mockedExeca).toBeCalledTimes(2);
+      expect(mockedWriteFileSync).toBeCalledTimes(1);
     });
   });
 });

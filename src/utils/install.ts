@@ -120,7 +120,14 @@ export async function installNode(
     'show',
     `node@${nodeVersion}`,
     'version'
-  ]).then(({ stdout }) => stdout.split('\n').slice(-1)[0].split(' ')[0].split('@')[1]);
+  ]).then(
+    ({ stdout }) => stdout.split('\n').slice(-1)[0].split(' ')[0].split('@').slice(-1)[0]
+  );
+
+  if (!latestNodeVersion)
+    throw new ComponentActionError(
+      `unable to determine latest node version relative to semver "${nodeVersion}"`
+    );
 
   debug(
     `determined latest available node version relative to semver ${nodeVersion} is: ${latestNodeVersion}`
