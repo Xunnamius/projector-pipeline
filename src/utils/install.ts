@@ -112,13 +112,13 @@ export async function installPrivilegedDependencies() {
  * official `actions/setup-node` GitHub Action.
  */
 export async function installNode(
-  { nodeVersion }: NodeOptions,
+  { version }: NodeOptions,
   npmToken: InvokerOptions['npmToken']
 ) {
-  // ? Resolve the latest version of `nodeVersion`
+  // ? Resolve the latest version of `version`
   const latestNodeVersion = await execa('npm', [
     'show',
-    `node@${nodeVersion}`,
+    `node@${version}`,
     'version'
   ]).then(
     ({ stdout }) => stdout.split('\n').slice(-1)[0].split(' ')[0].split('@').slice(-1)[0]
@@ -126,11 +126,11 @@ export async function installNode(
 
   if (!latestNodeVersion)
     throw new ComponentActionError(
-      `unable to determine latest node version relative to semver "${nodeVersion}"`
+      `unable to determine latest node version relative to semver "${version}"`
     );
 
   debug(
-    `determined latest available node version relative to semver ${nodeVersion} is: ${latestNodeVersion}`
+    `determined latest available node version relative to semver ${version} is: ${latestNodeVersion}`
   );
 
   const osArch = os.arch();

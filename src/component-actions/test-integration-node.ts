@@ -5,10 +5,12 @@ import metadataCollect from './metadata-collect';
 import debugFactory from 'debug';
 import execa from 'execa';
 
+import type { RunnerContext, InvokerOptions } from '../../types/global';
+
 const debug = debugFactory(`${pkgName}:${ComponentAction.TestIntegrationNode}`);
 
-export default async function () {
-  const { shouldSkipCi } = await metadataCollect();
+export default async function (context: RunnerContext, options: InvokerOptions) {
+  const { shouldSkipCi } = await metadataCollect(context, options);
 
   if (!shouldSkipCi) {
     await installDependencies();

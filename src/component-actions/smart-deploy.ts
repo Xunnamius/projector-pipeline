@@ -8,11 +8,11 @@ import debugFactory from 'debug';
 import core from '@actions/core';
 import execa from 'execa';
 
-import type { InvokerOptions } from '../../types/global';
+import type { RunnerContext, InvokerOptions } from '../../types/global';
 
 const debug = debugFactory(`${pkgName}:${ComponentAction.SmartDeploy}`);
 
-export default async function (options: InvokerOptions = {}) {
+export default async function (context: RunnerContext, options: InvokerOptions) {
   if (!options.npmToken)
     throw new ComponentActionError('missing required option `npmToken`');
 
@@ -29,7 +29,10 @@ export default async function (options: InvokerOptions = {}) {
 
   // TODO: do not checkout if only automerge
   // TODO: replace all metadata calls with destructuring style project-wide
-  const { shouldSkipCi, shouldSkipCd, commitSha } = await metadataDownload();
+  const { shouldSkipCi, shouldSkipCd, commitSha } = await metadataDownload(
+    context,
+    options
+  );
 
   if (!shouldSkipCi && !shouldSkipCd) {
     // * Prepare environment

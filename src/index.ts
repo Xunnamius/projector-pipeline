@@ -1,6 +1,6 @@
 import { ComponentActionError } from './error';
 import { name as pkgName } from '../package.json';
-import { ComponentAction } from '../types/global';
+import { ComponentAction, RunnerContext } from '../types/global';
 import debugFactory from 'debug';
 import cloneDeep from 'clone-deep';
 
@@ -31,6 +31,7 @@ export const GIT_MIN_VERSION = '2.18';
  */
 export async function invokeComponentAction(
   action: ComponentAction,
+  context: RunnerContext,
   options: InvokerOptions = {}
 ): Promise<InvokerResult> {
   options = cloneDeep(options);
@@ -43,7 +44,7 @@ export async function invokeComponentAction(
     outputs =
       (await ((await import(
         `${__dirname}/../src/component-actions/${action}`
-      )) as ComponentActionModule).default(options)) || {};
+      )) as ComponentActionModule).default(context, options)) || {};
   } catch (e) {
     debug('final options used: %O', options);
     debug(`caught error during "${action}": %O`, e);

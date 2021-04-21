@@ -1,4 +1,5 @@
 import { name as pkgName } from '../package.json';
+import { context } from '@actions/github';
 
 // TODO: determine matrices
 // TODO: add all secrets to core.setSecret

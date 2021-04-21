@@ -4,10 +4,12 @@ import metadataCollect from './metadata-collect';
 import debugFactory from 'debug';
 import execa from 'execa';
 
+import type { RunnerContext, InvokerOptions } from '../../types/global';
+
 const debug = debugFactory(`${pkgName}:${ComponentAction.Audit}`);
 
-export default async function () {
-  const { shouldSkipCi, npmAuditFailLevel } = await metadataCollect();
+export default async function (context: RunnerContext, options: InvokerOptions) {
+  const { shouldSkipCi, npmAuditFailLevel } = await metadataCollect(context, options);
 
   if (!shouldSkipCi) {
     await execa('npm', ['audit', `--audit-level=${npmAuditFailLevel}`], {

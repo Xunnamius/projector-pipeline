@@ -7,10 +7,15 @@ import debugFactory from 'debug';
 import core from '@actions/core';
 import execa from 'execa';
 
+import type { RunnerContext, InvokerOptions } from '../../types/global';
+
 const debug = debugFactory(`${pkgName}:${ComponentAction.TestUnit}`);
 
-export default async function () {
-  const { shouldSkipCi, canUploadCoverage, commitSha } = await metadataCollect();
+export default async function (context: RunnerContext, options: InvokerOptions) {
+  const { shouldSkipCi, canUploadCoverage, commitSha } = await metadataCollect(
+    context,
+    options
+  );
   const os = process.env.RUNNER_OS;
 
   if (!shouldSkipCi) {

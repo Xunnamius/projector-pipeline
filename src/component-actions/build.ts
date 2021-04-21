@@ -8,15 +8,17 @@ import debugFactory from 'debug';
 import core from '@actions/core';
 import execa from 'execa';
 
+import type { RunnerContext, InvokerOptions } from '../../types/global';
+
 const debug = debugFactory(`${pkgName}:${ComponentAction.Build}`);
 
-export default async function () {
+export default async function (context: RunnerContext, options: InvokerOptions) {
   const {
     shouldSkipCi,
     commitSha,
     artifactRetentionDays,
     hasDocs
-  } = await metadataCollect();
+  } = await metadataCollect(context, options);
 
   if (!shouldSkipCi) {
     const os = process.env.RUNNER_OS;

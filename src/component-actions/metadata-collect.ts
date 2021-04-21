@@ -1,18 +1,18 @@
+import { GLOBAL_PIPELINE_CONFIG_URI, UPLOADED_METADATA_TMPDIR } from '../index';
 import { name as pkgName } from '../../package.json';
 import { ComponentAction } from '../../types/global';
 import { ComponentActionError } from '../error';
 import { setupEnv } from '../utils/env';
-import { context } from '@actions/github';
-import { readFileSync, writeFileSync } from 'fs';
+import { installNode } from '../utils/install';
 import { cloneRepository, uploadPaths } from '../utils/github';
+import { readFileSync, writeFileSync } from 'fs';
 import { fetch } from 'isomorphic-json-fetch';
 import debugFactory from 'debug';
 import core from '@actions/core';
 import execa from 'execa';
 
-import { GLOBAL_PIPELINE_CONFIG_URI, UPLOADED_METADATA_TMPDIR } from '../index';
-
 import type {
+  RunnerContext,
   LocalPipelineConfig,
   GlobalPipelineConfig,
   InvokerOptions,
@@ -21,17 +21,21 @@ import type {
 
 const debug = debugFactory(`${pkgName}:${ComponentAction.MetadataCollect}`);
 
-export default async function (options: InvokerOptions = {}): Promise<Metadata> {
+export default async function (
+  context: RunnerContext,
+  options: InvokerOptions
+): Promise<Metadata> {
   if (!options.githubToken) {
     throw new ComponentActionError('missing required option `githubToken`');
   }
 
+  const currentBranch = context.ref.split('/').slice(2).join('/');
+
+  options.npmToken = options.npmToken || undefined;
   options.uploadArtifact = !!options.uploadArtifact;
   options.repository = options.repository ?? true;
   options.node = options.node ?? true;
   options.enableFastSkips = options.enableFastSkips ?? true;
-
-  const currentBranch = context.ref.split('/').slice(2).join('/');
 
   if (options.repository) {
     debug(`cloning repository`);
@@ -57,13 +61,12 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
   debug(`coalescing pipeline configurations`);
 
   try {
-    const { json } = await fetch<GlobalPipelineConfig>(GLOBAL_PIPELINE_CONFIG_URI, {
-      rejects: true
-    });
-
-    if (!json) {
-      throw new Error('network request succeeded but parsed response was undefined');
-    } else globalConfig = json;
+    ({ json: globalConfig } = await fetch.get<GlobalPipelineConfig>(
+      GLOBAL_PIPELINE_CONFIG_URI,
+      {
+        rejects: true
+      }
+    ));
   } catch (e) {
     throw new ComponentActionError(`failed to parse global pipeline config: ${e}`);
   }
@@ -97,8 +100,8 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
     prNumber: context.payload.pull_request?.number || null,
     canRelease: false, // ? Determined later
     canAutomerge: false, // ? Determined later
-    canRetryAutomerge: localConfig.canRetryAutomerge || globalConfig.canRetryAutomerge,
-    canUploadCoverage: localConfig.canUploadCoverage || globalConfig.canUploadCoverage,
+    canRetryAutomerge: localConfig.canRetryAutomerge ?? globalConfig.canRetryAutomerge,
+    canUploadCoverage: localConfig.canUploadCoverage ?? globalConfig.canUploadCoverage,
     hasDeploy: false, // ? Determined later
     hasReleaseConfig: false, // ? Determined later
     hasDocs: false, // ? Determined later
@@ -107,14 +110,14 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
     hasIntegrationExternals: false, // ? Determined later
     hasIntegrationClient: false, // ? Determined later
     hasIntegrationWebpack: false, // ? Determined later
-    debugString: localConfig.debugString || null,
+    debugString: localConfig.debugString || null, // ! XXX: || instead of ?? was on purpose
     committer: {
       name: localConfig.committer?.name || globalConfig.committer.name,
       email: localConfig.committer?.email || globalConfig.committer.email
     },
     npmAuditFailLevel: localConfig.npmAuditFailLevel || globalConfig.npmAuditFailLevel,
     artifactRetentionDays:
-      localConfig.artifactRetentionDays || globalConfig.artifactRetentionDays,
+      localConfig.artifactRetentionDays ?? globalConfig.artifactRetentionDays,
     releaseRepoOwnerWhitelist: globalConfig.releaseRepoOwnerWhitelist.map((el) =>
       el.toLowerCase()
     ),
@@ -157,31 +160,17 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
     !context.payload.pull_request?.draft;
 
   if (options.node) {
-    debug(`running @actions/node`);
+    debug(`setting up node`);
+    const opts = (options.node = {
+      version: 'latest',
+      ...(typeof options.node != 'boolean' ? options.node : {})
+    });
 
-    options.node = typeof options.node != 'boolean' ? options.node : {};
-
-    // TODO:
-    // ? See: https://github.com/actions/node/blob/main/src/main.ts
-    // const version =
-    //   options.node.nodeVersion ||
-    //   options.node.version ||
-    //   metadata.nodeCurrentVersion;
-
-    // const info = await getNode(
-    //   version,
-    //   !!options.node.stable,
-    //   !!options.node.checkLatest,
-    //   !options.node.token ? undefined : `token ${options.node.token}`,
-    //   options.node.architecture || os.arch()
-    // );
-
-    // debug(`node installer info for version "${version}": %O`, info);
+    debug(`installing node version ${opts.version}`);
+    await installNode({ version: opts.version }, options.npmToken);
   }
 
-  const { stdout: rawTaskList } = await execa('npm', ['run', 'list-tasks']);
-  const taskList = rawTaskList.split('\n');
-  let packageConfig: typeof import('../../package.json');
+  let packageConfig: Partial<typeof import('../../package.json')>;
   let releaseConfig: Partial<typeof import('../../release.config')>;
 
   try {
@@ -203,23 +192,26 @@ export default async function (options: InvokerOptions = {}): Promise<Metadata> 
     debug(`no release config loaded: failed to parse release.config.js: ${e}`);
   }
 
-  metadata.packageName = packageConfig.name;
+  const npmScripts = Object.keys(packageConfig.scripts || {});
+
+  packageConfig.name && (metadata.packageName = packageConfig.name);
   metadata.releaseBranchConfig = releaseConfig.branches || [];
-  metadata.hasDeploy = taskList.includes('deploy');
-  metadata.hasDocs = taskList.includes('build-docs');
-  metadata.hasExternals = taskList.includes('build-externals');
-  metadata.hasIntegrationNode = taskList.includes('test-integration-node');
-  metadata.hasIntegrationExternals = taskList.includes('test-integration-externals');
-  metadata.hasIntegrationClient = taskList.includes('test-integration-client');
-  metadata.hasIntegrationWebpack = taskList.includes('test-integration-webpack');
+  metadata.hasDeploy = npmScripts.includes('deploy');
+  metadata.hasDocs = npmScripts.includes('build-docs');
+  metadata.hasExternals = npmScripts.includes('build-externals');
+  metadata.hasIntegrationNode = npmScripts.includes('test-integration-node');
+  metadata.hasIntegrationExternals = npmScripts.includes('test-integration-externals');
+  metadata.hasIntegrationClient = npmScripts.includes('test-integration-client');
+  metadata.hasIntegrationWebpack = npmScripts.includes('test-integration-webpack');
 
   if (metadata.hasExternals != metadata.hasIntegrationExternals) {
     throw new ComponentActionError(
       'expected both 1) `build-externals` and 2) `test-integration-externals` scripts to be defined in package.json'
     );
-  } else if (!metadata.hasDocs) {
-    core.warning('no `build-docs` script defined in package.json');
-  } else if (!metadata.canUploadCoverage) {
+  }
+
+  if (!metadata.hasDocs) core.warning('no `build-docs` script defined in package.json');
+  if (!metadata.canUploadCoverage) {
     core.warning('no code coverage data will be uploaded during this run');
   }
 

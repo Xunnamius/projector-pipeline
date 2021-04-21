@@ -8,16 +8,18 @@ import core from '@actions/core';
 import execa from 'execa';
 import match from 'micromatch';
 
-import type { InvokerOptions } from '../../types/global';
+import type { RunnerContext, InvokerOptions } from '../../types/global';
 
 const debug = debugFactory(`${pkgName}:${ComponentAction.CleanupNpm}`);
 
-export default async function ({ npmToken }: InvokerOptions = {}) {
+export default async function (context: RunnerContext, options: InvokerOptions) {
+  const { npmToken } = options;
+
   if (!npmToken) {
     throw new ComponentActionError('missing required option `npmToken`');
   }
 
-  const { shouldSkipCi, releaseBranchConfig } = await metadataCollect();
+  const { shouldSkipCi, releaseBranchConfig } = await metadataCollect(context, options);
 
   if (!shouldSkipCi) {
     await execa('git', ['remote', 'prune', 'origin'], { stdio: 'inherit' });

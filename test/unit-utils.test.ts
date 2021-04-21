@@ -719,7 +719,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           'npm-token'
         )
@@ -743,7 +743,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           'npm-token'
         )
@@ -766,7 +766,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           'npm-token'
         )
@@ -792,7 +792,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           'npm-token'
         )
@@ -808,7 +808,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           'npm-token'
         )
@@ -837,7 +837,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           'npm-token'
         )
@@ -851,7 +851,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           'npm-token'
         )
@@ -876,7 +876,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           'npm-x-token'
         )
@@ -891,7 +891,7 @@ describe('install', () => {
       await expect(
         install.installNode(
           {
-            nodeVersion: 'x.y.z'
+            version: 'x.y.z'
           },
           undefined
         )

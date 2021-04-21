@@ -5,11 +5,14 @@ import { setupEnv } from '../utils/env';
 import debugFactory from 'debug';
 import core from '@actions/core';
 
-import type { Metadata, InvokerOptions } from '../../types/global';
+import type { Metadata, RunnerContext, InvokerOptions } from '../../types/global';
 
 const debug = debugFactory(`${pkgName}:${ComponentAction.MetadataDownload}`);
 
-export default async function (options: InvokerOptions = {}): Promise<Metadata> {
+export default async function (
+  context: RunnerContext,
+  options: InvokerOptions
+): Promise<Metadata> {
   if (!options.githubToken) {
     throw new ComponentActionError('missing required option `githubToken`');
   }
