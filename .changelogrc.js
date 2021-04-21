@@ -4,7 +4,6 @@ const debug = require('debug')(
   `${require('./package.json').name}:conventional-changelog-config`
 );
 
-const escapeRegExpStr = require('escape-string-regexp');
 const semver = require('semver');
 const execa = require('execa');
 
