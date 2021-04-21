@@ -28,19 +28,19 @@ module.exports = {
   // * A list of `github.repository_owner` where automated releases may occur.
   // * Unless running within one of the listed namespaces, workflows will not
   // * be allowed to run.
-  // ! Repository owner name comparisons are case INsensitive.
+  // ! WARNING: repository owner name comparisons are case INsensitive.
   releaseRepoOwnerWhitelist: ['xunnamius', 'ergodark', 'nhscc'],
 
   // * A list of exact logins (github.actor) allowed to trigger automated
   // * releases and deployments if all checks pass.
-  // ! WARNING #1: unlike releaseRepoOwnerWhitelist, matching is CASE SENSITIVE.
+  // ! WARNING #1: repository owner name comparisons are case INsensitive.
   // ! WARNING #2: any user in this list can release new software to your users.
   // ! Be very careful to whom you give this power!
-  releaseActorWhitelist: ['Xunnamius'],
+  releaseActorWhitelist: ['xunnamius'],
 
   // * A list of exact GitHub logins (github.actor) whose PRs will be
   // * automatically merged if all checks pass
-  // ! WARNING #1: unlike releaseRepoOwnerWhitelist, matching is CASE SENSITIVE.
+  // ! WARNING #1: repository owner name comparisons are case INsensitive.
   // ! WARNING #2: this allows 3rd party code to be merged and released without
   // ! any human oversight. Only allow this for trusted actors (e.g. your bot).
   automergeActorWhitelist: ['dependabot[bot]', 'xunn-bot'],
