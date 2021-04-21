@@ -39,10 +39,17 @@ export enum ComponentAction {
 export type ComponentActionModule = { default: ComponentActionFunction };
 
 /**
+ * The shape of the context object available during every GitHub Actions
+ * workflow run.
+ */
+export type RunnerContext = typeof import('@actions/github')['context'];
+
+/**
  * The type signature of a ComponentAction function.
  */
 export type ComponentActionFunction = (
-  options?: InvokerOptions
+  context: RunnerContext,
+  options: InvokerOptions
 ) => Promise<Metadata | Record<string, unknown> | void>;
 
 /**
@@ -104,7 +111,7 @@ export type NodeOptions = {
    * A semver string. The highest version of Node satisfying this string will be
    * installed and configured.
    */
-  nodeVersion: string;
+  version: string;
 };
 
 /**
