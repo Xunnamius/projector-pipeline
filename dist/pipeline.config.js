@@ -36,6 +36,7 @@ module.exports = {
   // ! WARNING #1: repository owner name comparisons are case INsensitive.
   // ! WARNING #2: any user in this list can release new software to your users.
   // ! Be very careful to whom you give this power!
+  // ? (this key can only appear in global pipeline config and not local)
   releaseActorWhitelist: ['xunnamius'],
 
   // * A list of exact GitHub logins (github.actor) whose PRs will be
@@ -43,6 +44,7 @@ module.exports = {
   // ! WARNING #1: repository owner name comparisons are case INsensitive.
   // ! WARNING #2: this allows 3rd party code to be merged and released without
   // ! any human oversight. Only allow this for trusted actors (e.g. your bot).
+  // ? (this key can only appear in global pipeline config and not local)
   automergeActorWhitelist: ['dependabot[bot]', 'xunn-bot'],
 
   // * Should auto-merge be retried on failure even when the PR appears
@@ -58,6 +60,7 @@ module.exports = {
   // * Names of NPM dist-tags that will never be automatically pruned during
   // * cleanup workflows. Those dist-tags that have corresponding release
   // * branches will never be pruned regardless of this setting.
+  // ? (this key can only appear in global pipeline config and not local)
   npmIgnoreDistTags: ['latest'],
 
   // * Attempt to upload project coverage data to codecov if `true`.

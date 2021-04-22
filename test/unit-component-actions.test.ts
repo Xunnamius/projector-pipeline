@@ -1,9 +1,10 @@
 import { ComponentAction } from '../src/index';
 import { asMockedFunction, isolatedImport, withMockedEnv } from './setup';
-import { readFileSync, writeFileSync } from 'fs';
+import { writeFileSync, accessSync } from 'fs';
+import { cloneRepository, uploadPaths } from '../src/utils/github';
 import { fetch } from 'isomorphic-json-fetch';
 import { installNode } from '../src/utils/install';
-import { cloneRepository, uploadPaths } from '../src/utils/github';
+import { toss } from 'toss-expression';
 import * as core from '@actions/core';
 import execa from 'execa';
 import * as mc from '../src/component-actions/metadata-collect';
@@ -15,34 +16,9 @@ import type {
   ExecaReturnType,
   Metadata,
   InvokerOptions,
-  RunnerContext
+  RunnerContext,
+  LocalPipelineConfig
 } from '../types/global';
-
-jest.mock('execa');
-
-jest.mock('fs', () => {
-  const fs = jest.createMockFromModule<typeof import('fs')>('fs');
-  fs.promises = jest.createMockFromModule<typeof import('fs/promises')>('fs/promises');
-  return fs;
-});
-
-jest.mock('isomorphic-json-fetch', () => {
-  const fetch = jest.fn();
-  // @ts-expect-error .get is a sugar method on the fetch function
-  fetch.get = jest.fn();
-  // @ts-expect-error .post is a sugar method on the fetch function
-  fetch.post = jest.fn();
-  return { fetch };
-});
-
-jest.mock('@actions/core', () => ({
-  warning: jest.fn(),
-  info: jest.fn()
-}));
-
-jest.mock('../src/utils/env');
-jest.mock('../src/utils/github');
-jest.mock('../src/utils/install');
 
 const DUMMY_CONTEXT: ReadonlyDeep<RunnerContext> = {
   action: 'action-name',
@@ -63,50 +39,116 @@ const DUMMY_GLOBAL_CONFIG = jest.requireActual(
   '../dist/pipeline.config.js'
 ) as typeof import('../dist/pipeline.config');
 
+const FAKE_ROOT = '/non-existent-project';
+const FAKE_PACKAGE_CONFIG_PATH = `${FAKE_ROOT}/package.json`;
+const FAKE_PIPELINE_CONFIG_PATH = `${FAKE_ROOT}/.github/pipeline.config.js`;
+const FAKE_RELEASE_CONFIG_PATH = `${FAKE_ROOT}/release.config.js`;
+
+jest.mock('execa');
+
+jest.mock('fs', () => {
+  const fs = jest.createMockFromModule<typeof import('fs')>('fs');
+  fs.promises = jest.createMockFromModule<typeof import('fs/promises')>('fs/promises');
+  return fs;
+});
+
+jest.mock('isomorphic-json-fetch', () => {
+  const fetch = jest.fn();
+  // @ts-expect-error .get is a sugar method on the fetch function
+  fetch.get = jest.fn();
+  return { fetch };
+});
+
+jest.mock('@actions/core', () => ({
+  warning: jest.fn(),
+  info: jest.fn()
+}));
+
+jest.mock('../src/utils/env');
+jest.mock('../src/utils/github');
+jest.mock('../src/utils/install');
+
 const mockedExeca = asMockedFunction(execa);
 // TODO: retire this line when .changelogrc.js is fixed
 mockedExeca.sync = jest.requireActual('execa').sync;
 
 const mockedFetchGet = asMockedFunction(fetch.get);
-const mockedCoreInfo = asMockedFunction(core.info);
 const mockedCoreWarning = asMockedFunction(core.warning);
-const mockedReadFileSync = asMockedFunction(readFileSync);
 const mockedWriteFileSync = asMockedFunction(writeFileSync);
+const mockedAccessSync = asMockedFunction(accessSync);
 const mockedInstallNode = asMockedFunction(installNode);
 const mockedCloneRepository = asMockedFunction(cloneRepository);
 const mockedUploadPaths = asMockedFunction(uploadPaths);
 
-let mockMetadata: Partial<Metadata> = {};
+const mockMetadata: Partial<Metadata> = {};
+const mockPackageConfig: Partial<typeof import('../package.json')> = {};
+const mockLocalConfig: Partial<LocalPipelineConfig> = {};
+const mockReleaseConfig: Partial<typeof import('../release.config.js')> = {};
 
-const mcSpy = jest.spyOn(mc, 'default');
-const mdSpy = jest.spyOn(mc, 'default');
+jest.doMock(FAKE_PACKAGE_CONFIG_PATH, () => mockPackageConfig, {
+  virtual: true
+});
 
-const setupMetadataSpies = () => {
-  mcSpy.mockImplementation(() => Promise.resolve(mockMetadata as Metadata));
-  mdSpy.mockImplementation(() => Promise.resolve(mockMetadata as Metadata));
+jest.doMock(FAKE_PIPELINE_CONFIG_PATH, () => mockLocalConfig, {
+  virtual: true
+});
+
+jest.doMock(FAKE_RELEASE_CONFIG_PATH, () => mockReleaseConfig, {
+  virtual: true
+});
+
+let mcSpy: jest.SpyInstance;
+let mdSpy: jest.SpyInstance;
+
+const doMockMetadataSpies = () => {
+  mcSpy = jest
+    .spyOn(mc, 'default')
+    .mockImplementation(() => Promise.resolve(mockMetadata as Metadata));
+
+  mdSpy = jest
+    .spyOn(mc, 'default')
+    .mockImplementation(() => Promise.resolve(mockMetadata as Metadata));
 };
 
-setupMetadataSpies();
+const restoreMetadataSpies = () => {
+  mcSpy.mockRestore();
+  mdSpy.mockRestore();
+};
+
+const isolatedActionImport = async (action: ComponentAction) => {
+  return (await isolatedImport(
+    `../src/component-actions/${action}`
+  )) as ComponentActionFunction;
+};
+
+beforeEach(() => {
+  doMockMetadataSpies();
+  jest.doMock(FAKE_PACKAGE_CONFIG_PATH);
+  jest.doMock(FAKE_PIPELINE_CONFIG_PATH);
+  jest.doMock(FAKE_RELEASE_CONFIG_PATH);
+  jest.spyOn(process, 'cwd').mockImplementation(() => FAKE_ROOT);
+});
 
 afterEach(() => {
-  mockMetadata = {};
-  jest.clearAllMocks();
+  // ? Clear the mock objects without changing their references
+  [mockPackageConfig, mockLocalConfig, mockReleaseConfig, mockMetadata].forEach((o) =>
+    // @ts-expect-error: TypeScript isn't smart enough to get this
+    Object.keys(o).forEach((k) => delete o[k])
+  );
 });
 
 describe(`${ComponentAction.Audit}`, () => {
   it('succeeds if npm audit is successful', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.Audit}`
-    )) as ComponentActionFunction;
-
     mockMetadata.npmAuditFailLevel = 'test-audit-level';
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.resolve() as unknown) as ReturnType<typeof mockedExeca>
     );
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.Audit))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
     expect(mockedExeca).toBeCalledWith(
       'npm',
       expect.arrayContaining(['audit', '--audit-level=test-audit-level']),
@@ -117,48 +159,27 @@ describe(`${ComponentAction.Audit}`, () => {
   it('fails if npm audit is unsuccessful', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.Audit}`
-    )) as ComponentActionFunction;
-
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.reject(new Error('bad')) as unknown) as ReturnType<typeof mockedExeca>
     );
 
-    await expect(action(DUMMY_CONTEXT, {})).rejects.toMatchObject({
+    await expect(
+      (await isolatedActionImport(ComponentAction.Audit))(DUMMY_CONTEXT, {})
+    ).rejects.toMatchObject({
       message: expect.stringContaining('bad')
     });
 
     expect(mockedExeca).toBeCalled();
   });
 
-  it('sets appropriate default options', async () => {
-    expect.hasAssertions();
-
-    const options: InvokerOptions = { githubToken: 'faker' };
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.Audit}`
-    )) as ComponentActionFunction;
-
-    mockedExeca.mockReturnValueOnce(
-      (Promise.resolve() as unknown) as ReturnType<typeof mockedExeca>
-    );
-
-    await expect(action(DUMMY_CONTEXT, options)).resolves.toBeUndefined();
-    expect(options).toStrictEqual({ githubToken: 'faker' });
-    expect(mockedExeca).toBeCalled();
-  });
-
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.Audit}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.Audit))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });
@@ -166,18 +187,15 @@ describe(`${ComponentAction.Audit}`, () => {
 describe(`${ComponentAction.Build}`, () => {
   test.todo('succeeds if build script is successful');
   test.todo('fails if ...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.Build}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });
@@ -185,19 +203,16 @@ describe(`${ComponentAction.Build}`, () => {
 describe(`${ComponentAction.CleanupNpm}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.CleanupNpm}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      action(DUMMY_CONTEXT, { npmToken: 'npm-token' })
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+        npmToken: 'npm-token'
+      })
     ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
@@ -206,121 +221,100 @@ describe(`${ComponentAction.CleanupNpm}`, () => {
 describe(`${ComponentAction.Lint}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.Lint}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.Lint))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });
 
 describe(`${ComponentAction.MetadataCollect}`, () => {
-  beforeAll(() => jest.restoreAllMocks());
-  afterAll(() => setupMetadataSpies());
+  beforeEach(() => restoreMetadataSpies());
 
   it('throws if no options.githubToken', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
-
-    await expect(action(DUMMY_CONTEXT, {})).rejects.toMatchObject({
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {})
+    ).rejects.toMatchObject({
       message: expect.stringContaining('`githubToken`')
     });
   });
 
-  it('throws if fetch fails', async () => {
+  it('throws if global pipeline config fetch fails', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(Promise.reject());
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockedFetchGet.mockReturnValue(Promise.reject());
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
       message: expect.stringContaining('failed to parse global pipeline config')
     });
-
-    expect(mockedFetchGet).toBeCalledTimes(1);
   });
 
   it('throws if no PR number could be associated with a PR event', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(
+    mockedFetchGet.mockReturnValue(
       (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
 
-    mockedReadFileSync.mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
-
     await expect(
-      action(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(
         { ...DUMMY_CONTEXT, eventName: 'pull_request' },
-        {
-          githubToken: 'github-token',
-          repository: false
-        }
+        { githubToken: 'github-token' }
       )
     ).rejects.toMatchObject({
       message: expect.stringContaining('PR number')
     });
-
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(1);
   });
 
-  it('throws if failed to parse package.json', async () => {
+  it('throws if failed to find or import package.json', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(
+    mockedFetchGet.mockReturnValue(
       (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
 
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync.mockReturnValueOnce('{}').mockImplementationOnce(() => {
-      throw new Error('bad');
-    });
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockedAccessSync.mockImplementation(
+      (name) => name == FAKE_PACKAGE_CONFIG_PATH && toss(new Error('dummy access error'))
+    );
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
-      message: expect.stringContaining('failed to parse package.json')
+      message: expect.stringContaining(`find ${FAKE_PACKAGE_CONFIG_PATH}`)
     });
 
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(2);
+    jest.dontMock(FAKE_PACKAGE_CONFIG_PATH);
+    mockedAccessSync.mockReset();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining(`import ${FAKE_PACKAGE_CONFIG_PATH}`)
+    });
   });
 
   it('throws if package.json contains invalid externals scripts', async () => {
@@ -336,136 +330,119 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockImplementationOnce(
-        () => `{
-          "name":"fakePkg",
-          "scripts": {
-            "build-externals": "yes"
-          }
-        }`
-      )
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockImplementationOnce(
-        () => `{
-          "name":"fakePkg",
-          "scripts": {
-            "test-integration-externals": "yes"
-          }
-        }`
-      )
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockImplementationOnce(
-        () => `{
-          "name":"fakePkg",
-          "scripts": {
-            "test-integration-externals": "yes",
-            "build-externals": "yes"
-          }
-        }`
-      );
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockPackageConfig.name = 'fake-pkg-1';
+    mockPackageConfig.scripts = {
+      // @ts-expect-error: package.json inaccuracies
+      'build-externals': 'yes'
+    };
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
       message: expect.stringContaining('expected both')
     });
 
-    await expect(
-      action(DUMMY_CONTEXT, {
-        githubToken: 'github-token'
-      })
-    ).rejects.toMatchObject({
-      message: expect.stringContaining('expected both')
-    });
+    mockPackageConfig.name = 'fake-pkg-2';
+    mockPackageConfig.scripts = {
+      // @ts-expect-error: package.json inaccuracies
+      'test-integration-externals': 'yes',
+      'build-externals': 'yes'
+    };
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
 
-    expect(mockedFetchGet).toBeCalledTimes(3);
-    expect(mockedExeca).toBeCalledTimes(3);
-    expect(mockedReadFileSync).toBeCalledTimes(9);
+    mockPackageConfig.name = 'fake-pkg-3';
+    mockPackageConfig.scripts = {
+      // @ts-expect-error: package.json inaccuracies
+      'test-integration-externals': 'yes'
+    };
 
-    mockedFetchGet.mockReset();
-    mockedExeca.mockReset();
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('expected both')
+    });
   });
 
-  it('warns when no local pipeline config found', async () => {
+  it('warns if failed to find local pipeline config', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(
+    mockedFetchGet.mockReturnValue(
       (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
 
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync
-      .mockImplementationOnce(() => {
-        throw new Error('bad');
-      })
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockedAccessSync.mockImplementation(
+      (name) => name == FAKE_PIPELINE_CONFIG_PATH && toss(new Error('dummy access error'))
+    );
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
 
     expect(mockedCoreWarning).toBeCalledWith(
-      expect.stringContaining('no optional local config loaded')
+      expect.stringContaining('no local pipeline config loaded')
     );
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
   });
 
-  it('warns if failed to find/parse release.config.js', async () => {
+  it('throws if failed to import found local pipeline config', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(
+    mockedFetchGet.mockReturnValue(
       (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
 
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockImplementationOnce(() => {
-        throw new Error('bad');
-      });
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    jest.dontMock(FAKE_PIPELINE_CONFIG_PATH);
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining(`failed to import ${FAKE_PIPELINE_CONFIG_PATH}`)
+    });
+  });
+
+  it('warns if failed to find semantic-release config', async () => {
+    expect.hasAssertions();
+
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+        typeof mockedFetchGet
+      >
+    );
+
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
+    );
+
+    mockedAccessSync.mockImplementation(
+      (name) => name == FAKE_RELEASE_CONFIG_PATH && toss(new Error('dummy access error'))
+    );
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -473,48 +450,47 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     expect(mockedCoreWarning).toBeCalledWith(
       expect.stringContaining('no release config loaded')
     );
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
+  });
+
+  it('throws if failed to import found semantic-release config', async () => {
+    expect.hasAssertions();
+
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+        typeof mockedFetchGet
+      >
+    );
+
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
+    );
+
+    jest.dontMock(FAKE_RELEASE_CONFIG_PATH);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining(`failed to import ${FAKE_RELEASE_CONFIG_PATH}`)
+    });
   });
 
   it('warns if no build-docs script', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet
-      .mockReturnValueOnce(
-        (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
-          typeof mockedFetchGet
-        >
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
-          typeof mockedFetchGet
-        >
-      );
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+        typeof mockedFetchGet
+      >
+    );
 
-    mockedExeca
-      .mockReturnValueOnce(
-        (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-      );
-
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{"scripts":{"build-docs":"yes"}}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
+    );
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -522,205 +498,126 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     expect(mockedCoreWarning).toBeCalledWith(
       expect.stringContaining('no `build-docs` script')
     );
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
+
+    mockPackageConfig.scripts = {
+      'build-docs': 'yes'
+    } as typeof mockPackageConfig.scripts;
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
-
-    expect(mockedCoreWarning).toBeCalledTimes(1);
-    expect(mockedFetchGet).toBeCalledTimes(2);
-    expect(mockedExeca).toBeCalledTimes(2);
-    expect(mockedReadFileSync).toBeCalledTimes(6);
   });
 
   it('warns if code coverage upload is disabled', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(
+    mockedFetchGet.mockReturnValue(
       (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
 
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync
-      .mockReturnValueOnce('{"canUploadCoverage":false}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockLocalConfig.canUploadCoverage = false;
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
 
     expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('no code coverage'));
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
   });
 
   it('returns early if fast skips enabled and pipeline command encountered', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet
-      .mockReturnValueOnce(
-        (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
-          typeof mockedFetchGet
-        >
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
-          typeof mockedFetchGet
-        >
-      );
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+        typeof mockedFetchGet
+      >
+    );
 
-    mockedExeca
-      .mockReturnValueOnce(
-        (Promise.resolve({
-          stdout: 'build: commit msg [SKIP CI]'
-        }) as unknown) as ExecaReturnType
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({
-          stdout: 'build: commit msg [SKIP CI]'
-        }) as unknown) as ExecaReturnType
-      );
-
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({
+        stdout: 'build: commit msg [SKIP CI]'
+      }) as unknown) as ExecaReturnType
+    );
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
         // ? enableFastSkips: true should be the default
       })
     ).resolves.not.toBeUndefined();
 
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(1);
+    expect(mockedInstallNode).toBeCalledTimes(0);
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token',
         enableFastSkips: false
       })
     ).resolves.not.toBeUndefined();
 
-    expect(mockedFetchGet).toBeCalledTimes(2);
-    expect(mockedExeca).toBeCalledTimes(2);
-    expect(mockedReadFileSync).toBeCalledTimes(4);
+    expect(mockedInstallNode).toBeCalledTimes(1);
   });
 
   it('installs node unless options.node == false', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet
-      .mockReturnValueOnce(
-        (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
-          typeof mockedFetchGet
-        >
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
-          typeof mockedFetchGet
-        >
-      );
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+        typeof mockedFetchGet
+      >
+    );
 
-    mockedExeca
-      .mockReturnValueOnce(
-        (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-      );
-
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
+    );
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
 
     expect(mockedInstallNode).toBeCalledTimes(1);
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token',
         node: false
       })
     ).resolves.not.toBeUndefined();
 
     expect(mockedInstallNode).toBeCalledTimes(1);
-    expect(mockedFetchGet).toBeCalledTimes(2);
-    expect(mockedExeca).toBeCalledTimes(2);
-    expect(mockedReadFileSync).toBeCalledTimes(6);
   });
 
   it('installs specific node version given options.node.version', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(
+    mockedFetchGet.mockReturnValue(
       (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
 
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
-
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
 
     const opts = {
       version: 'x.y.z'
     };
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token-x',
         npmToken: 'npm-token-y',
         node: opts
@@ -728,91 +625,51 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     ).resolves.not.toBeUndefined();
 
     expect(mockedInstallNode).toBeCalledWith(opts, 'npm-token-y');
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
   });
 
   it('clones repository unless options.repository == false', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet
-      .mockReturnValueOnce(
-        (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
-          typeof mockedFetchGet
-        >
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
-          typeof mockedFetchGet
-        >
-      );
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+        typeof mockedFetchGet
+      >
+    );
 
-    mockedExeca
-      .mockReturnValueOnce(
-        (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-      );
-
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
+    );
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
 
     expect(mockedCloneRepository).toBeCalledTimes(1);
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token',
         repository: false
       })
     ).resolves.not.toBeUndefined();
 
     expect(mockedCloneRepository).toBeCalledTimes(1);
-    expect(mockedFetchGet).toBeCalledTimes(2);
-    expect(mockedExeca).toBeCalledTimes(2);
-    expect(mockedReadFileSync).toBeCalledTimes(6);
   });
 
   it('clones repository with passed options and token', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(
+    mockedFetchGet.mockReturnValue(
       (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
 
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
-
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
 
     const opts = {
       branchOrTag: 'canary',
@@ -824,69 +681,41 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     };
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token-x',
         repository: opts
       })
     ).resolves.not.toBeUndefined();
 
     expect(mockedCloneRepository).toBeCalledWith(opts, 'github-token-x');
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
   });
 
   it('uploads artifact only if options.uploadArtifact == true', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet
-      .mockReturnValueOnce(
-        (Promise.resolve({
-          json: { ...DUMMY_GLOBAL_CONFIG, artifactRetentionDays: 50 }
-        }) as unknown) as ReturnType<typeof mockedFetchGet>
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({
-          json: { ...DUMMY_GLOBAL_CONFIG, artifactRetentionDays: 50 }
-        }) as unknown) as ReturnType<typeof mockedFetchGet>
-      );
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({
+        json: { ...DUMMY_GLOBAL_CONFIG, artifactRetentionDays: 50 }
+      }) as unknown) as ReturnType<typeof mockedFetchGet>
+    );
 
-    mockedExeca
-      .mockReturnValueOnce(
-        (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-      )
-      .mockReturnValueOnce(
-        (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-      );
-
-    mockedReadFileSync
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
+    );
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
         // ? uploadArtifact: false should be the default
       })
     ).resolves.not.toBeUndefined();
 
     expect(mockedUploadPaths).toBeCalledTimes(0);
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
 
     await withMockedEnv(
-      () =>
+      async () =>
         expect(
-          action(
+          (await isolatedActionImport(ComponentAction.MetadataCollect))(
             { ...DUMMY_CONTEXT, sha: 'commit-sha-xyz' },
             {
               githubToken: 'github-token',
@@ -897,14 +726,12 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       { RUNNER_OS: 'fake-runner' }
     );
 
+    expect(mockedWriteFileSync).toBeCalled();
     expect(mockedUploadPaths).toBeCalledWith(
       expect.anything(),
       'metadata-fake-runner-commit-sha-xyz',
       50
     );
-    expect(mockedFetchGet).toBeCalledTimes(2);
-    expect(mockedExeca).toBeCalledTimes(2);
-    expect(mockedReadFileSync).toBeCalledTimes(6);
   });
 
   it('collected metadata is accurate wrt release repo owner (case insensitive)', async () => {
@@ -920,14 +747,8 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync.mockReturnValue('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
-
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -935,7 +756,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
 
     await expect(
-      action(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
           ...DUMMY_CONTEXT,
           actor: 'xunnamius',
@@ -950,7 +771,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
 
     await expect(
-      action(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
           ...DUMMY_CONTEXT,
           actor: 'xunnamius',
@@ -965,7 +786,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
 
     await expect(
-      action(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
           ...DUMMY_CONTEXT,
           actor: 'dependabot[bot]',
@@ -981,13 +802,9 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       canRelease: false,
       canAutomerge: false
     });
-
-    mockedFetchGet.mockReset();
-    mockedExeca.mockReset();
-    mockedReadFileSync.mockReset();
   });
 
-  it('collected metadata is accurate wrt skipping CI/CD', async () => {
+  it('collected metadata is accurate wrt pipeline commands', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -996,19 +813,49 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       >
     );
 
-    mockedExeca.mockReturnValue(
-      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
-    );
+    mockedExeca
+      .mockReturnValueOnce(
+        (Promise.resolve({
+          stdout: 'commit msg [CI SKIP]'
+        }) as unknown) as ExecaReturnType
+      )
+      .mockReturnValueOnce(
+        (Promise.resolve({
+          stdout: 'commit msg [CD SKIP]'
+        }) as unknown) as ExecaReturnType
+      )
+      .mockReturnValueOnce(
+        (Promise.resolve({
+          stdout: 'commit msg'
+        }) as unknown) as ExecaReturnType
+      );
 
-    mockedReadFileSync.mockReturnValue('{}');
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.toMatchObject<Partial<Metadata>>({
+      shouldSkipCi: true,
+      shouldSkipCd: true
+    });
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.toMatchObject<Partial<Metadata>>({
+      shouldSkipCi: false,
+      shouldSkipCd: true
+    });
 
-    mockedFetchGet.mockReset();
-    mockedExeca.mockReset();
-    mockedReadFileSync.mockReset();
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.toMatchObject<Partial<Metadata>>({
+      shouldSkipCi: false,
+      shouldSkipCd: false
+    });
   });
 
   it('collected metadata is accurate wrt package name and scripts', async () => {
@@ -1024,15 +871,48 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync.mockReturnValue('{}');
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.toMatchObject<Partial<Metadata>>({
+      packageName: '<unknown>',
+      hasDeploy: false,
+      hasDocs: false,
+      hasExternals: false,
+      hasIntegrationNode: false,
+      hasIntegrationExternals: false,
+      hasIntegrationClient: false,
+      hasIntegrationWebpack: false
+    });
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockPackageConfig.name = 'my-pkg';
+    mockPackageConfig.scripts = {
+      // @ts-expect-error: forced type widening here
+      deploy: 'yes',
+      'build-docs': 'yes',
+      'build-externals': 'yes',
+      'test-integration': 'yes',
+      'test-integration-client': 'yes',
+      'test-integration-node': 'yes',
+      'test-integration-externals': 'yes',
+      'test-integration-webpack': 'yes'
+    };
 
-    mockedFetchGet.mockReset();
-    mockedExeca.mockReset();
-    mockedReadFileSync.mockReset();
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.toMatchObject<Partial<Metadata>>({
+      packageName: 'my-pkg',
+      hasDeploy: true,
+      hasDocs: true,
+      hasExternals: true,
+      hasIntegrationNode: true,
+      hasIntegrationExternals: true,
+      hasIntegrationClient: true,
+      hasIntegrationWebpack: true
+    });
   });
 
   it('collected metadata is accurate wrt release config', async () => {
@@ -1048,15 +928,27 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync.mockReturnValue('{}');
+    mockedAccessSync.mockImplementation(
+      (name) => name == FAKE_RELEASE_CONFIG_PATH && toss(new Error('dummy access error'))
+    );
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.toMatchObject<Partial<Metadata>>({
+      hasReleaseConfig: false
+    });
 
-    mockedFetchGet.mockReset();
-    mockedExeca.mockReset();
-    mockedReadFileSync.mockReset();
+    mockedAccessSync.mockReset();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.toMatchObject<Partial<Metadata>>({
+      hasReleaseConfig: true
+    });
   });
 
   it('collected metadata is accurate wrt a PR context', async () => {
@@ -1072,14 +964,8 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync.mockReturnValue('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
-
     await expect(
-      action(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
           ...DUMMY_CONTEXT,
           actor: 'xunnamius',
@@ -1098,7 +984,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
 
     await expect(
-      action(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
           ...DUMMY_CONTEXT,
           actor: 'dependabot[bot]',
@@ -1117,7 +1003,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
 
     await expect(
-      action(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
           ...DUMMY_CONTEXT,
           actor: 'dependabot[bot]',
@@ -1134,10 +1020,6 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       canAutomerge: false,
       prNumber: 1234
     });
-
-    mockedFetchGet.mockReset();
-    mockedExeca.mockReset();
-    mockedReadFileSync.mockReset();
   });
 
   it('collected metadata merges global and local pipeline config', async () => {
@@ -1153,49 +1035,54 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync.mockReturnValue('{}');
+    mockLocalConfig.debugString = 'debug-string';
+    mockReleaseConfig.branches = ['branch-1', 'branch-2'];
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
-
-    mockedFetchGet.mockReset();
-    mockedExeca.mockReset();
-    mockedReadFileSync.mockReset();
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.toMatchObject<Partial<Metadata>>({
+      nodeCurrentVersion: DUMMY_GLOBAL_CONFIG.nodeCurrentVersion,
+      nodeTestVersions: DUMMY_GLOBAL_CONFIG.nodeTestVersions,
+      webpackTestVersions: DUMMY_GLOBAL_CONFIG.webpackTestVersions,
+      commitSha: DUMMY_CONTEXT.sha,
+      currentBranch: 'main',
+      debugString: 'debug-string',
+      releaseBranchConfig: ['branch-1', 'branch-2'],
+      committer: {
+        email: DUMMY_GLOBAL_CONFIG.committer.email,
+        name: DUMMY_GLOBAL_CONFIG.committer.name
+      },
+      npmAuditFailLevel: DUMMY_GLOBAL_CONFIG.npmAuditFailLevel
+    });
   });
 
-  it('administrative keys in global pipeline config cannot be overridden by local pipeline config', async () => {
+  it('administrative keys in global pipeline config cannot be overridden by local config, but other keys can', async () => {
     expect.hasAssertions();
 
-    mockedFetchGet.mockReturnValueOnce(
+    mockedFetchGet.mockReturnValue(
       (Promise.resolve({
         json: DUMMY_GLOBAL_CONFIG
       }) as unknown) as ReturnType<typeof mockedFetchGet>
     );
 
-    mockedExeca.mockReturnValueOnce(
+    mockedExeca.mockReturnValue(
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
-    mockedReadFileSync
-      .mockReturnValueOnce(
-        `{
-        "artifactRetentionDays": 50,
-        "releaseRepoOwnerWhitelist": ['evil-owner'],
-        "releaseActorWhitelist": ['evil-actor'],
-        "automergeActorWhitelist": ['evil-actor'],
-        "npmIgnoreDistTags": ['evil-tags']
-      }`
-      )
-      .mockReturnValueOnce('{}')
-      .mockReturnValueOnce('{}');
-
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.MetadataCollect}`
-    )) as ComponentActionFunction;
+    mockLocalConfig.artifactRetentionDays = 50;
+    // @ts-expect-errors testing evil local configs
+    mockLocalConfig.releaseRepoOwnerWhitelist = ['evil-owner'];
+    // @ts-expect-errors testing evil local configs
+    mockLocalConfig.releaseActorWhitelist = ['evil-actor'];
+    // @ts-expect-errors testing evil local configs
+    mockLocalConfig.automergeActorWhitelist = ['evil-actor'];
+    // @ts-expect-errors testing evil local configs
+    mockLocalConfig.npmIgnoreDistTags = ['evil-tags'];
 
     await expect(
-      action(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
           ...DUMMY_CONTEXT,
           actor: 'evil-actor',
@@ -1215,44 +1102,31 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
       automergeActorWhitelist: DUMMY_GLOBAL_CONFIG.automergeActorWhitelist,
       releaseRepoOwnerWhitelist: DUMMY_GLOBAL_CONFIG.releaseRepoOwnerWhitelist,
       npmIgnoreDistTags: DUMMY_GLOBAL_CONFIG.npmIgnoreDistTags,
-      artifactRetentionDays: DUMMY_GLOBAL_CONFIG.artifactRetentionDays
+      artifactRetentionDays: 50
     });
 
-    expect(mockedUploadPaths).toBeCalledWith(
-      expect.anything(),
-      expect.anything(),
-      DUMMY_GLOBAL_CONFIG.artifactRetentionDays
-    );
-    expect(mockedFetchGet).toBeCalledTimes(1);
-    expect(mockedExeca).toBeCalledTimes(1);
-    expect(mockedReadFileSync).toBeCalledTimes(3);
+    expect(mockedUploadPaths).toBeCalledWith(expect.anything(), expect.anything(), 50);
   });
 });
 
 describe(`${ComponentAction.MetadataDownload}`, () => {
-  beforeAll(() => jest.restoreAllMocks());
-  afterAll(() => setupMetadataSpies());
+  beforeEach(() => restoreMetadataSpies());
+
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 });
 
 describe(`${ComponentAction.SmartDeploy}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.SmartDeploy}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DUMMY_CONTEXT, {
         npmToken: 'npm-token',
         gpgPassphrase: 'gpg-passphrase',
         gpgPrivateKey: 'gpg-private-key',
@@ -1265,14 +1139,10 @@ describe(`${ComponentAction.SmartDeploy}`, () => {
   it('skipped if `metadata.shouldSkipCd == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.SmartDeploy}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCd = true;
 
     await expect(
-      action(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DUMMY_CONTEXT, {
         npmToken: 'npm-token',
         gpgPassphrase: 'gpg-passphrase',
         gpgPrivateKey: 'gpg-private-key',
@@ -1286,18 +1156,18 @@ describe(`${ComponentAction.SmartDeploy}`, () => {
 describe(`${ComponentAction.TestIntegrationClient}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.TestIntegrationClient}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestIntegrationClient))(
+        DUMMY_CONTEXT,
+        {}
+      )
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });
@@ -1305,18 +1175,18 @@ describe(`${ComponentAction.TestIntegrationClient}`, () => {
 describe(`${ComponentAction.TestIntegrationExternals}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.TestIntegrationExternals}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestIntegrationExternals))(
+        DUMMY_CONTEXT,
+        {}
+      )
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });
@@ -1324,18 +1194,15 @@ describe(`${ComponentAction.TestIntegrationExternals}`, () => {
 describe(`${ComponentAction.TestIntegrationNode}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.TestIntegrationNode}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestIntegrationNode))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });
@@ -1343,18 +1210,18 @@ describe(`${ComponentAction.TestIntegrationNode}`, () => {
 describe(`${ComponentAction.TestIntegrationWebpack}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.TestIntegrationWebpack}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestIntegrationWebpack))(
+        DUMMY_CONTEXT,
+        {}
+      )
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });
@@ -1362,18 +1229,15 @@ describe(`${ComponentAction.TestIntegrationWebpack}`, () => {
 describe(`${ComponentAction.TestUnit}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.TestUnit}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestUnit))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });
@@ -1381,31 +1245,26 @@ describe(`${ComponentAction.TestUnit}`, () => {
 describe(`${ComponentAction.VerifyNpm}`, () => {
   test.todo('succeeds if ...');
   test.todo('fails if...');
-  test.todo('sets appropriate default options');
 
   it('skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.VerifyNpm}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCi = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 
   it('skipped if `metadata.shouldSkipCd == true`', async () => {
     expect.hasAssertions();
 
-    const action = (await isolatedImport(
-      `../src/component-actions/${ComponentAction.VerifyNpm}`
-    )) as ComponentActionFunction;
-
     mockMetadata.shouldSkipCd = true;
 
-    await expect(action(DUMMY_CONTEXT, {})).resolves.toBeUndefined();
+    await expect(
+      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
     expect(mockedExeca).not.toBeCalled();
   });
 });

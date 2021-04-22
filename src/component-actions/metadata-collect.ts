@@ -5,8 +5,9 @@ import { ComponentActionError } from '../error';
 import { setupEnv } from '../utils/env';
 import { installNode } from '../utils/install';
 import { cloneRepository, uploadPaths } from '../utils/github';
-import { readFileSync, writeFileSync } from 'fs';
+import { writeFileSync, accessSync, constants as fs } from 'fs';
 import { fetch } from 'isomorphic-json-fetch';
+import { toss } from 'toss-expression';
 import debugFactory from 'debug';
 import core from '@actions/core';
 import execa from 'execa';
@@ -56,9 +57,6 @@ export default async function (
   debug(`downloading global default metadata from ${GLOBAL_PIPELINE_CONFIG_URI}`);
 
   let globalConfig: GlobalPipelineConfig;
-  let localConfig: Partial<LocalPipelineConfig> = {};
-
-  debug(`coalescing pipeline configurations`);
 
   try {
     ({ json: globalConfig } = await fetch.get<GlobalPipelineConfig>(
@@ -71,15 +69,23 @@ export default async function (
     throw new ComponentActionError(`failed to parse global pipeline config: ${e}`);
   }
 
+  const localConfigPath = `${process.cwd()}/.github/pipeline.config.js`;
+  let localConfig: Partial<LocalPipelineConfig> = {};
+
+  debug(`importing local pipeline config from ${localConfigPath}`);
+
   try {
-    localConfig = JSON.parse(
-      readFileSync('.github/pipeline.config.js', { encoding: 'utf-8' })
-    );
+    accessSync(localConfigPath, fs.R_OK);
+    localConfig = require(localConfigPath);
   } catch (e) {
-    core.warning(
-      `no optional local config loaded: failed to parse local pipeline config`
-    );
-    debug(`no local config loaded: failed to parse local pipeline config: ${e}`);
+    if (e instanceof Error && e.message.includes(' access ')) {
+      debug(`${localConfigPath} is missing: ${e}`);
+      core.warning(
+        `no local pipeline config loaded: missing pipeline configuration file`
+      );
+    } else {
+      throw new ComponentActionError(`failed to import ${localConfigPath}: ${e}`);
+    }
   }
 
   debug(`collecting metadata`);
@@ -170,26 +176,39 @@ export default async function (
     await installNode({ version: opts.version }, options.npmToken);
   }
 
-  let packageConfig: Partial<typeof import('../../package.json')>;
-  let releaseConfig: Partial<typeof import('../../release.config')>;
+  let packageConfig: Partial<typeof import('../../package.json')> = {};
+  let releaseConfig: Partial<typeof import('../../release.config')> = {};
+
+  const packageConfigPath = `${process.cwd()}/package.json`;
+  debug(`importing package config from ${packageConfigPath}`);
 
   try {
-    packageConfig = JSON.parse(readFileSync('./package.json', { encoding: 'utf-8' }));
+    accessSync(packageConfigPath, fs.R_OK);
+    packageConfig = require(packageConfigPath);
   } catch (e) {
-    throw new ComponentActionError(`failed to parse package.json: ${e}`);
+    e instanceof Error && e.message.includes(' access ')
+      ? toss(new ComponentActionError(`failed to find ${packageConfigPath}: ${e}`))
+      : toss(new ComponentActionError(`failed to import ${packageConfigPath}: ${e}`));
   }
 
+  const releaseConfigPath = `${process.cwd()}/release.config.js`;
+  debug(`importing semantic-release config from ${releaseConfigPath}`);
+
   try {
-    releaseConfig = JSON.parse(
-      readFileSync('./release.config.js', { encoding: 'utf-8' })
-    );
+    accessSync(releaseConfigPath, fs.R_OK);
+    releaseConfig = require(releaseConfigPath);
     metadata.hasReleaseConfig = true;
   } catch (e) {
-    releaseConfig = {} as typeof releaseConfig;
     metadata.hasReleaseConfig = false;
 
-    core.warning(`no release config loaded: failed to parse release.config.js`);
-    debug(`no release config loaded: failed to parse release.config.js: ${e}`);
+    if (e instanceof Error && e.message.includes(' access ')) {
+      debug(`${releaseConfigPath} is missing: ${e}`);
+      core.warning(
+        `no release config loaded: missing local semantic-release configuration file`
+      );
+    } else {
+      throw new ComponentActionError(`failed to import ${releaseConfigPath}: ${e}`);
+    }
   }
 
   const npmScripts = Object.keys(packageConfig.scripts || {});

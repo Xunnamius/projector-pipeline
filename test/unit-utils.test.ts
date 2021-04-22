@@ -82,15 +82,15 @@ const mockedArtifactCreateDownloadArtifact = asMockedFunction<
   ReturnType<typeof artifact.create>['downloadArtifact']
 >();
 
-asMockedFunction(artifact.create).mockReturnValue(({
-  uploadArtifact: mockedArtifactCreateUploadArtifact,
-  downloadArtifact: mockedArtifactCreateDownloadArtifact
-} as unknown) as ReturnType<typeof artifact.create>);
-
 beforeEach(() => {
   // ? If debugging has been enabled for the projector-pipeline repo itself,
   // ? disable it temporarily so as to not interfere these tests
   runtimeDebugNamespaces = debugFactory.disable();
+
+  asMockedFunction(artifact.create).mockReturnValue(({
+    uploadArtifact: mockedArtifactCreateUploadArtifact,
+    downloadArtifact: mockedArtifactCreateDownloadArtifact
+  } as unknown) as ReturnType<typeof artifact.create>);
 });
 
 afterEach(() => {
