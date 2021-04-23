@@ -1,7 +1,6 @@
 import { ComponentAction, UPLOADED_METADATA_PATH } from '../src/index';
 import { asMockedFunction, isolatedImport, withMockedEnv } from './setup';
 import { writeFileSync, accessSync } from 'fs';
-import { cloneRepository, uploadPaths, downloadPaths } from '../src/utils/github';
 import { fetch } from 'isomorphic-json-fetch';
 import { installNode } from '../src/utils/install';
 import { toss } from 'toss-expression';
@@ -9,6 +8,14 @@ import * as core from '@actions/core';
 import execa from 'execa';
 import * as mc from '../src/component-actions/metadata-collect';
 import * as md from '../src/component-actions/metadata-download';
+
+import {
+  cloneRepository,
+  uploadPaths,
+  downloadPaths,
+  cachePaths,
+  uncachePaths
+} from '../src/utils/github';
 
 import type { ReadonlyDeep } from 'type-fest';
 import type {
@@ -79,6 +86,8 @@ const mockedInstallNode = asMockedFunction(installNode);
 const mockedCloneRepository = asMockedFunction(cloneRepository);
 const mockedUploadPaths = asMockedFunction(uploadPaths);
 const mockedDownloadPaths = asMockedFunction(downloadPaths);
+const mockedCachePaths = asMockedFunction(cachePaths);
+const mockedUncachePaths = asMockedFunction(uncachePaths);
 
 const mockMetadata: Partial<Metadata> = {};
 const mockPackageConfig: Partial<typeof import('../package.json')> = {};
@@ -194,8 +203,50 @@ describe(`audit action`, () => {
 });
 
 describe('build action', () => {
-  test.todo('[build] succeeds if build script is successful');
-  test.todo('[build] fails if ...');
+  it('[build] builds docs only if metadata.hasDocs == true', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).not.toBeCalledWith(
+      'npm',
+      expect.arrayContaining(['build-docs']),
+      expect.anything()
+    );
+
+    mockMetadata.hasDocs = true;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      expect.arrayContaining(['build-docs']),
+      expect.anything()
+    );
+  });
+
+  it('[build] uncaches coverage data and uploads build artifact', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.commitSha = 'sha';
+    mockMetadata.artifactRetentionDays = 2;
+
+    await withMockedEnv(
+      async () => {
+        await expect(
+          (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
+        ).resolves.toBeUndefined();
+      },
+      { RUNNER_OS: 'fake-os' }
+    );
+
+    expect(mockedUncachePaths).toBeCalledWith(['./coverage'], `coverage-fake-os-sha`);
+    expect(uploadPaths).toBeCalledWith(expect.anything(), `build-fake-os-sha`, 2);
+  });
 
   it('[build] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();

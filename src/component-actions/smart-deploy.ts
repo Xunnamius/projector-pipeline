@@ -5,7 +5,6 @@ import { installPrivilegedDependencies } from '../utils/install';
 import { downloadPaths } from '../utils/github';
 import metadataDownload from './metadata-download';
 import debugFactory from 'debug';
-import core from '@actions/core';
 import execa from 'execa';
 
 import type { RunnerContext, InvokerOptions } from '../../types/global';

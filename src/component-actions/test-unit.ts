@@ -4,7 +4,6 @@ import { installDependencies } from '../utils/install';
 import { cachePaths } from '../utils/github';
 import metadataCollect from './metadata-collect';
 import debugFactory from 'debug';
-import core from '@actions/core';
 import execa from 'execa';
 
 import type { RunnerContext, InvokerOptions } from '../../types/global';
@@ -22,8 +21,7 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
     await installDependencies();
     await execa('npm', ['run', 'test-unit'], { stdio: 'inherit' });
 
-    canUploadCoverage
-      ? await cachePaths(['./coverage'], `coverage-${os}-${commitSha}`)
-      : core.warning('no code coverage data will be collected for this run');
+    canUploadCoverage &&
+      (await cachePaths(['./coverage'], `coverage-${os}-${commitSha}`));
   } else debug(`skipped component action "${ComponentAction.TestUnit}"`);
 }

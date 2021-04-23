@@ -4,7 +4,6 @@ import { ComponentActionError } from '../error';
 import { writeFileSync } from 'fs';
 import metadataCollect from './metadata-collect';
 import debugFactory from 'debug';
-import core from '@actions/core';
 import execa from 'execa';
 import match from 'micromatch';
 

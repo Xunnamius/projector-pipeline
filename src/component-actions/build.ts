@@ -1,11 +1,9 @@
 import { name as pkgName } from '../../package.json';
 import { ComponentAction } from '../../types/global';
 import { installDependencies } from '../utils/install';
-import { uncachePaths } from '../utils/github';
-import { uploadPaths } from '../utils/github';
+import { uncachePaths, uploadPaths } from '../utils/github';
 import metadataCollect from '../component-actions/metadata-collect';
 import debugFactory from 'debug';
-import core from '@actions/core';
 import execa from 'execa';
 
 import type { RunnerContext, InvokerOptions } from '../../types/global';
@@ -27,9 +25,7 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
     await execa('npm', ['run', 'format'], { stdio: 'inherit' });
     await execa('npm', ['run', 'build-dist'], { stdio: 'inherit' });
 
-    hasDocs
-      ? await execa('npm', ['run', 'build-docs'], { stdio: 'inherit' })
-      : core.warning('no `build-docs` script defined in package.json');
+    hasDocs && (await execa('npm', ['run', 'build-docs'], { stdio: 'inherit' }));
 
     await execa('npm', ['run', 'format'], { stdio: 'inherit' });
     await uncachePaths(['./coverage'], `coverage-${os}-${commitSha}`);
