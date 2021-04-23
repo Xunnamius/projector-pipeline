@@ -60,7 +60,7 @@ Uses `metadata-collect` under the hood.
 [_Unprivileged_][3]. Builds a project's distributables via `npm run build` and uploads
 them as an artifact for use by `smart-deploy`. This component action expects coverage
 data to be available in the cache at runtime. Hence, this component action must always
-run _after_ `test-unit`.
+run _after_ `test-unit`, which produces this data.
 
 Uses `metadata-collect` under the hood.
 
@@ -140,7 +140,8 @@ Uses `metadata-collect` under the hood.
 
 **[`test-unit`][38]**\
 [_Unprivileged_][3]. Runs all unit tests via `npm run test-unit` and caches coverage
-data for use by `build`. Hence, this component action must always run _before_ `build`.
+data for use by `build`. Hence, this component action must always run _before_ `build`,
+which consumes this data.
 
 Uses `metadata-collect` under the hood.
 
