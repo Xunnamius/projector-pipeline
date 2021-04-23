@@ -37,7 +37,7 @@ module.exports = {
   // ! WARNING #2: any user in this list can release new software to your users.
   // ! Be very careful to whom you give this power!
   // ? (this key can only appear in global pipeline config and not local)
-  releaseActorWhitelist: ['xunnamius'],
+  releaseActorWhitelist: ['xunnamius', 'xunn-bot'],
 
   // * A list of exact GitHub logins (github.actor) whose PRs will be
   // * automatically merged if all checks pass

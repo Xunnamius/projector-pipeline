@@ -228,20 +228,17 @@ export type InvokerOptions = {
   uploadArtifact?: boolean;
 
   /**
-   * If `true`, `ComponentAction.MetadataDownload` will reissue any pipeline
-   * warnings caused by (downloaded) metadata. These warnings are always
-   * reported by the `metadata-collect` component action already, usually making
-   * reissuing the warnings redundant.
+   * If `true`, the `metadata-download` component action will reissue most
+   * pipeline warnings triggered by the downloaded metadata. These warnings are
+   * always reported by the `metadata-collect` component action already, usually
+   * making reissuing the warnings redundant.
    *
-   * This setting is useful when manually invoking the `metadata-download`
-   * component action in a workflow where no other metadata component actions
-   * have yet run. This ensures pipeline warnings appear in both the original
-   * workflow and the secondary workflow so that they are not accidentally
-   * missed during review.
+   * This setting also causes `metadata-collect` to issue a warning when the
+   * pipeline is in debug. Normally this output is suppressed.
    *
    * @default false
    */
-  reissueWarnings?: boolean;
+  forceWarnings?: boolean;
 
   /**
    * If `true`, `ComponentAction.MetadataCollect` will terminate collecting

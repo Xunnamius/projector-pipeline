@@ -1,7 +1,7 @@
-import { ComponentAction } from '../src/index';
+import { ComponentAction, UPLOADED_METADATA_PATH } from '../src/index';
 import { asMockedFunction, isolatedImport, withMockedEnv } from './setup';
 import { writeFileSync, accessSync } from 'fs';
-import { cloneRepository, uploadPaths } from '../src/utils/github';
+import { cloneRepository, uploadPaths, downloadPaths } from '../src/utils/github';
 import { fetch } from 'isomorphic-json-fetch';
 import { installNode } from '../src/utils/install';
 import { toss } from 'toss-expression';
@@ -15,7 +15,6 @@ import type {
   ComponentActionFunction,
   ExecaReturnType,
   Metadata,
-  InvokerOptions,
   RunnerContext,
   LocalPipelineConfig
 } from '../types/global';
@@ -79,11 +78,14 @@ const mockedAccessSync = asMockedFunction(accessSync);
 const mockedInstallNode = asMockedFunction(installNode);
 const mockedCloneRepository = asMockedFunction(cloneRepository);
 const mockedUploadPaths = asMockedFunction(uploadPaths);
+const mockedDownloadPaths = asMockedFunction(downloadPaths);
 
 const mockMetadata: Partial<Metadata> = {};
 const mockPackageConfig: Partial<typeof import('../package.json')> = {};
 const mockLocalConfig: Partial<LocalPipelineConfig> = {};
 const mockReleaseConfig: Partial<typeof import('../release.config.js')> = {};
+
+// ! Don't forget to add a doMock for each of these in the `beforeEach` as well
 
 jest.doMock(FAKE_PACKAGE_CONFIG_PATH, () => mockPackageConfig, {
   virtual: true
@@ -97,6 +99,12 @@ jest.doMock(FAKE_RELEASE_CONFIG_PATH, () => mockReleaseConfig, {
   virtual: true
 });
 
+jest.doMock(UPLOADED_METADATA_PATH, () => mockMetadata, {
+  virtual: true
+});
+
+// ! \\
+
 let mcSpy: jest.SpyInstance;
 let mdSpy: jest.SpyInstance;
 
@@ -106,7 +114,7 @@ const doMockMetadataSpies = () => {
     .mockImplementation(() => Promise.resolve(mockMetadata as Metadata));
 
   mdSpy = jest
-    .spyOn(mc, 'default')
+    .spyOn(md, 'default')
     .mockImplementation(() => Promise.resolve(mockMetadata as Metadata));
 };
 
@@ -126,6 +134,7 @@ beforeEach(() => {
   jest.doMock(FAKE_PACKAGE_CONFIG_PATH);
   jest.doMock(FAKE_PIPELINE_CONFIG_PATH);
   jest.doMock(FAKE_RELEASE_CONFIG_PATH);
+  jest.doMock(UPLOADED_METADATA_PATH);
   jest.spyOn(process, 'cwd').mockImplementation(() => FAKE_ROOT);
 });
 
@@ -137,8 +146,8 @@ afterEach(() => {
   );
 });
 
-describe(`${ComponentAction.Audit}`, () => {
-  it('succeeds if npm audit is successful', async () => {
+describe(`audit action`, () => {
+  it('[audit] succeeds if npm audit is successful', async () => {
     expect.hasAssertions();
 
     mockMetadata.npmAuditFailLevel = 'test-audit-level';
@@ -156,7 +165,7 @@ describe(`${ComponentAction.Audit}`, () => {
     );
   });
 
-  it('fails if npm audit is unsuccessful', async () => {
+  it('[audit] fails if npm audit is unsuccessful', async () => {
     expect.hasAssertions();
 
     mockedExeca.mockReturnValue(
@@ -172,7 +181,7 @@ describe(`${ComponentAction.Audit}`, () => {
     expect(mockedExeca).toBeCalled();
   });
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[audit] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -184,11 +193,11 @@ describe(`${ComponentAction.Audit}`, () => {
   });
 });
 
-describe(`${ComponentAction.Build}`, () => {
-  test.todo('succeeds if build script is successful');
-  test.todo('fails if ...');
+describe('build action', () => {
+  test.todo('[build] succeeds if build script is successful');
+  test.todo('[build] fails if ...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[build] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -200,11 +209,11 @@ describe(`${ComponentAction.Build}`, () => {
   });
 });
 
-describe(`${ComponentAction.CleanupNpm}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('cleanup-npm action', () => {
+  test.todo('[cleanup-npm] succeeds if ...');
+  test.todo('[cleanup-npm] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[cleanup-npm] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -218,11 +227,11 @@ describe(`${ComponentAction.CleanupNpm}`, () => {
   });
 });
 
-describe(`${ComponentAction.Lint}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('lint action', () => {
+  test.todo('[lint] succeeds if ...');
+  test.todo('[lint] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[lint] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -234,10 +243,10 @@ describe(`${ComponentAction.Lint}`, () => {
   });
 });
 
-describe(`${ComponentAction.MetadataCollect}`, () => {
+describe('metadata-collect action', () => {
   beforeEach(() => restoreMetadataSpies());
 
-  it('throws if no options.githubToken', async () => {
+  it('[metadata-collect] throws if no options.githubToken', async () => {
     expect.hasAssertions();
 
     await expect(
@@ -247,7 +256,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('throws if global pipeline config fetch fails', async () => {
+  it('[metadata-collect] throws if global pipeline config fetch fails', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(Promise.reject());
@@ -261,7 +270,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('throws if no PR number could be associated with a PR event', async () => {
+  it('[metadata-collect] throws if no PR number could be associated with a PR event', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -280,7 +289,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('throws if failed to find or import package.json', async () => {
+  it('[metadata-collect] throws if failed to find or import package.json', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -317,7 +326,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('throws if package.json contains invalid externals scripts', async () => {
+  it('[metadata-collect] throws if package.json contains invalid externals scripts', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -372,7 +381,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('warns if failed to find local pipeline config', async () => {
+  it('[metadata-collect] warns if failed to find local pipeline config', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -400,7 +409,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     );
   });
 
-  it('throws if failed to import found local pipeline config', async () => {
+  it('[metadata-collect] throws if failed to import found local pipeline config', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -424,7 +433,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('warns if failed to find semantic-release config', async () => {
+  it('[metadata-collect] warns if failed to find semantic-release config', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -452,7 +461,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     );
   });
 
-  it('throws if failed to import found semantic-release config', async () => {
+  it('[metadata-collect] throws if failed to import found semantic-release config', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -476,7 +485,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('warns if no build-docs script', async () => {
+  it('[metadata-collect] warns if no build-docs script', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -510,7 +519,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     ).resolves.not.toBeUndefined();
   });
 
-  it('warns if code coverage upload is disabled', async () => {
+  it('[metadata-collect] warns if code coverage upload is disabled', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -534,7 +543,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('no code coverage'));
   });
 
-  it('returns early if fast skips enabled and pipeline command encountered', async () => {
+  it('[metadata-collect] returns early if fast skips enabled and pipeline command encountered', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -568,7 +577,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     expect(mockedInstallNode).toBeCalledTimes(1);
   });
 
-  it('installs node unless options.node == false', async () => {
+  it('[metadata-collect] installs node unless options.node == false', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -592,14 +601,23 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token',
+        node: true // ? This is the default
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedInstallNode).toBeCalledTimes(2);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token',
         node: false
       })
     ).resolves.not.toBeUndefined();
 
-    expect(mockedInstallNode).toBeCalledTimes(1);
+    expect(mockedInstallNode).toBeCalledTimes(2);
   });
 
-  it('installs specific node version given options.node.version', async () => {
+  it('[metadata-collect] installs specific node version given options.node.version', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -627,7 +645,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     expect(mockedInstallNode).toBeCalledWith(opts, 'npm-token-y');
   });
 
-  it('clones repository unless options.repository == false', async () => {
+  it('[metadata-collect] clones repository unless options.repository == false', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -651,14 +669,23 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
         githubToken: 'github-token',
+        repository: true // ? This is the default
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCloneRepository).toBeCalledTimes(2);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token',
         repository: false
       })
     ).resolves.not.toBeUndefined();
 
-    expect(mockedCloneRepository).toBeCalledTimes(1);
+    expect(mockedCloneRepository).toBeCalledTimes(2);
   });
 
-  it('clones repository with passed options and token', async () => {
+  it('[metadata-collect] clones repository with passed options and token', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -690,7 +717,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     expect(mockedCloneRepository).toBeCalledWith(opts, 'github-token-x');
   });
 
-  it('uploads artifact only if options.uploadArtifact == true', async () => {
+  it('[metadata-collect] uploads artifact only if options.uploadArtifact == true', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -734,7 +761,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     );
   });
 
-  it('collected metadata is accurate wrt release repo owner (case insensitive)', async () => {
+  it('[metadata-collect] collected metadata is accurate wrt release repo owner (case insensitive)', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -804,7 +831,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('collected metadata is accurate wrt pipeline commands', async () => {
+  it('[metadata-collect] collected metadata is accurate wrt pipeline commands', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -858,7 +885,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('collected metadata is accurate wrt package name and scripts', async () => {
+  it('[metadata-collect] collected metadata is accurate wrt package name and scripts', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -915,7 +942,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('collected metadata is accurate wrt release config', async () => {
+  it('[metadata-collect] collected metadata is accurate wrt release config', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -951,7 +978,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('collected metadata is accurate wrt a PR context', async () => {
+  it('[metadata-collect] collected metadata is accurate wrt a PR context', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -1022,7 +1049,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('collected metadata merges global and local pipeline config', async () => {
+  it('[metadata-collect] collected metadata merges global and local pipeline config', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -1058,7 +1085,7 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
     });
   });
 
-  it('administrative keys in global pipeline config cannot be overridden by local config, but other keys can', async () => {
+  it('[metadata-collect] administrative keys in global pipeline config cannot be overridden by local config, but other keys can', async () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
@@ -1107,20 +1134,347 @@ describe(`${ComponentAction.MetadataCollect}`, () => {
 
     expect(mockedUploadPaths).toBeCalledWith(expect.anything(), expect.anything(), 50);
   });
+
+  it('[metadata-collect] issues debug warning if options.forceWarnings == true and debugString metadata given', async () => {
+    expect.hasAssertions();
+
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({
+        json: DUMMY_GLOBAL_CONFIG
+      }) as unknown) as ReturnType<typeof mockedFetchGet>
+    );
+
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
+    );
+
+    mockLocalConfig.debugString = 'debug-string';
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+        // forceWarnings: false should be the default
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCoreWarning).not.toBeCalledWith('PIPELINE IS RUNNING IN DEBUG MODE');
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token',
+        forceWarnings: true
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCoreWarning).toBeCalledWith(
+      expect.stringContaining('PIPELINE IS RUNNING IN DEBUG MODE')
+    );
+  });
+
+  it('[metadata-collect] issues debug warning if options.forceWarnings == true and process.env.DEBUG given', async () => {
+    expect.hasAssertions();
+
+    mockedFetchGet.mockReturnValue(
+      (Promise.resolve({
+        json: DUMMY_GLOBAL_CONFIG
+      }) as unknown) as ReturnType<typeof mockedFetchGet>
+    );
+
+    mockedExeca.mockReturnValue(
+      (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
+    );
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+        githubToken: 'github-token',
+        forceWarnings: true
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCoreWarning).not.toBeCalledWith('PIPELINE IS RUNNING IN DEBUG MODE');
+
+    await withMockedEnv(
+      async () => {
+        await expect(
+          (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+            githubToken: 'github-token',
+            forceWarnings: true
+          })
+        ).resolves.not.toBeUndefined();
+
+        expect(mockedCoreWarning).toBeCalledWith(
+          expect.stringContaining('PIPELINE IS RUNNING IN DEBUG MODE')
+        );
+      },
+      { DEBUG: 'debug-string' }
+    );
+  });
 });
 
-describe(`${ComponentAction.MetadataDownload}`, () => {
+describe('metadata-download action', () => {
   beforeEach(() => restoreMetadataSpies());
 
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+  it('[metadata-download] throws if no options.githubToken', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {})
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('`githubToken`')
+    });
+  });
+
+  it('[metadata-download] throws if artifact download or parse fails', async () => {
+    expect.hasAssertions();
+
+    mockedDownloadPaths.mockImplementationOnce(() =>
+      Promise.reject(new Error('fake error'))
+    );
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('failed to acquire metadata artifact')
+    });
+
+    mockedDownloadPaths.mockReset();
+    jest.dontMock(UPLOADED_METADATA_PATH);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('failed to import metadata artifact')
+    });
+  });
+
+  it('[metadata-download] installs node unless options.node == false', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedInstallNode).toBeCalledTimes(1);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token',
+        node: true // ? This is the default
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedInstallNode).toBeCalledTimes(2);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token',
+        node: false
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedInstallNode).toBeCalledTimes(2);
+  });
+
+  it('[metadata-download] installs specific node version given options.node.version', async () => {
+    expect.hasAssertions();
+
+    const opts = {
+      version: 'x.y.z'
+    };
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token-x',
+        npmToken: 'npm-token-y',
+        node: opts
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedInstallNode).toBeCalledWith(opts, 'npm-token-y');
+  });
+
+  it('[metadata-download] clones repository specified in metadata unless options.repository == false', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token'
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCloneRepository).toBeCalledTimes(1);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token',
+        repository: true // ? This is the default
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCloneRepository).toBeCalledTimes(2);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token',
+        repository: false
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCloneRepository).toBeCalledTimes(2);
+  });
+
+  it('[metadata-download] clones repository with passed options and token', async () => {
+    expect.hasAssertions();
+
+    const opts = {
+      branchOrTag: 'canary',
+      checkoutRef: 'canary',
+      fetchDepth: 5,
+      repositoryName: 'name',
+      repositoryOwner: 'owner',
+      repositoryPath: '/path'
+    };
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token-x',
+        repository: opts
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCloneRepository).toBeCalledWith(opts, 'github-token-x');
+  });
+
+  it('[metadata-download] reissues warnings if options.forceWarnings == true and debugString metadata given', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.debugString = 'debug-string';
+    mockMetadata.hasDocs = false;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token-x'
+        // forceWarnings: false should be the default
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCoreWarning).not.toBeCalled();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token-x',
+        forceWarnings: true
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('debug-string'));
+    expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('build-docs'));
+    expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('code coverage'));
+    expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('release config'));
+  });
+
+  it('[metadata-download] reissues warnings if options.forceWarnings == true and process.env.DEBUG given', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+        githubToken: 'github-token-x',
+        forceWarnings: false
+      })
+    ).resolves.not.toBeUndefined();
+
+    expect(mockedCoreWarning).not.toBeCalled();
+
+    await withMockedEnv(
+      async () => {
+        await expect(
+          (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+            githubToken: 'github-token-x',
+            forceWarnings: true
+          })
+        ).resolves.not.toBeUndefined();
+      },
+      { DEBUG: 'debug-string' }
+    );
+
+    expect(mockedCoreWarning).toBeCalledWith(expect.stringContaining('debug-string'));
+  });
+
+  it('[metadata-download] downloads metadata artifact and outputs identical result', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.artifactRetentionDays = 44;
+    mockMetadata.automergeActorWhitelist = ['x'];
+    mockMetadata.canAutomerge = true;
+    mockMetadata.canRelease = true;
+    mockMetadata.canRetryAutomerge = false;
+    mockMetadata.canUploadCoverage = true;
+    mockMetadata.cdSkipRegex = /f/;
+    mockMetadata.cdSkipRegex = /g/;
+    mockMetadata.commitSha = 'good-sha';
+    mockMetadata.committer = { email: 'good-email', name: 'good-name' };
+    mockMetadata.currentBranch = 'good-branch';
+    mockMetadata.debugString = 'good-debug-string';
+    mockMetadata.hasDeploy = true;
+    mockMetadata.hasDocs = false;
+    mockMetadata.hasExternals = false;
+    mockMetadata.hasIntegrationClient = false;
+    mockMetadata.hasIntegrationExternals = false;
+    mockMetadata.hasIntegrationNode = false;
+    mockMetadata.hasIntegrationWebpack = false;
+    mockMetadata.hasReleaseConfig = true;
+    mockMetadata.nodeCurrentVersion = 'x.y.z';
+    mockMetadata.nodeTestVersions = ['w', 'x', 'y'];
+    mockMetadata.npmAuditFailLevel = 'good-fail';
+    mockMetadata.npmIgnoreDistTags = ['good'];
+    mockMetadata.packageName = 'good-package-name';
+    mockMetadata.prNumber = 333;
+    mockMetadata.releaseActorWhitelist = ['x'];
+    mockMetadata.releaseBranchConfig = [];
+    mockMetadata.releaseRepoOwnerWhitelist = ['x'];
+    mockMetadata.shouldSkipCd = false;
+    mockMetadata.shouldSkipCi = false;
+    mockMetadata.webpackTestVersions = ['a'];
+
+    mockPackageConfig.name = 'evil-name';
+    mockLocalConfig.debugString = 'evil-debug-string';
+    mockReleaseConfig.branches = ['evil'];
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(
+        {
+          ...DUMMY_CONTEXT,
+          actor: 'evil-actor',
+          eventName: 'workflow_run',
+          ref: 'refs/heads/evil-branch',
+          // ? An "evil" sha would cause the download step to fail (tested above)
+          sha: 'evil-sha'
+        },
+        {
+          githubToken: 'github-token'
+        }
+      )
+    ).resolves.toStrictEqual(mockMetadata);
+
+    expect(mockedExeca).not.toBeCalledWith(
+      expect.stringContaining('npm'),
+      expect.anything(),
+      expect.anything()
+    );
+  });
 });
 
-describe(`${ComponentAction.SmartDeploy}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('smart-deploy action', () => {
+  test.todo('[smart-deploy] succeeds if ...');
+  test.todo('[smart-deploy] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[smart-deploy] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1136,7 +1490,7 @@ describe(`${ComponentAction.SmartDeploy}`, () => {
     expect(mockedExeca).not.toBeCalled();
   });
 
-  it('skipped if `metadata.shouldSkipCd == true`', async () => {
+  it('[smart-deploy] skipped if `metadata.shouldSkipCd == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCd = true;
@@ -1153,11 +1507,11 @@ describe(`${ComponentAction.SmartDeploy}`, () => {
   });
 });
 
-describe(`${ComponentAction.TestIntegrationClient}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('test-integration-client action', () => {
+  test.todo('[test-integration-client] succeeds if ...');
+  test.todo('[test-integration-client] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-integration-client] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1172,11 +1526,11 @@ describe(`${ComponentAction.TestIntegrationClient}`, () => {
   });
 });
 
-describe(`${ComponentAction.TestIntegrationExternals}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('test-integration-externals action', () => {
+  test.todo('[test-integration-externals] succeeds if ...');
+  test.todo('[test-integration-externals] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-integration-externals] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1191,11 +1545,11 @@ describe(`${ComponentAction.TestIntegrationExternals}`, () => {
   });
 });
 
-describe(`${ComponentAction.TestIntegrationNode}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('test-integration-node action', () => {
+  test.todo('[test-integration-node] succeeds if ...');
+  test.todo('[test-integration-node] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-integration-node] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1207,11 +1561,11 @@ describe(`${ComponentAction.TestIntegrationNode}`, () => {
   });
 });
 
-describe(`${ComponentAction.TestIntegrationWebpack}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('test-integration-webpack action', () => {
+  test.todo('[test-integration-webpack] succeeds if ...');
+  test.todo('[test-integration-webpack] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-integration-webpack] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1226,11 +1580,11 @@ describe(`${ComponentAction.TestIntegrationWebpack}`, () => {
   });
 });
 
-describe(`${ComponentAction.TestUnit}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('test-unit action', () => {
+  test.todo('[test-unit] succeeds if ...');
+  test.todo('[test-unit] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-unit] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1242,11 +1596,11 @@ describe(`${ComponentAction.TestUnit}`, () => {
   });
 });
 
-describe(`${ComponentAction.VerifyNpm}`, () => {
-  test.todo('succeeds if ...');
-  test.todo('fails if...');
+describe('verify-npm action', () => {
+  test.todo('[verify-npm] succeeds if ...');
+  test.todo('[verify-npm] fails if...');
 
-  it('skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[verify-npm] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1257,7 +1611,7 @@ describe(`${ComponentAction.VerifyNpm}`, () => {
     expect(mockedExeca).not.toBeCalled();
   });
 
-  it('skipped if `metadata.shouldSkipCd == true`', async () => {
+  it('[verify-npm] skipped if `metadata.shouldSkipCd == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCd = true;

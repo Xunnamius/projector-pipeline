@@ -3,6 +3,7 @@ import { name as pkgName } from '../package.json';
 import { ComponentAction, RunnerContext } from '../types/global';
 import debugFactory from 'debug';
 import cloneDeep from 'clone-deep';
+import os from 'os';
 
 import type {
   InvokerOptions,
@@ -22,7 +23,7 @@ export const PRIVILEGED_DEPS_URI =
   'https://github.com/xunnamius/projector-pipeline/raw/main/dist/privileged/package.json';
 export const GLOBAL_PIPELINE_CONFIG_URI =
   'https://github.com/xunnamius/projector-pipeline/raw/main/dist/pipeline.config.js';
-export const UPLOADED_METADATA_TMPDIR = '/tmp/uploaded.meta.json';
+export const UPLOADED_METADATA_PATH = `${os.tmpdir()}/uploaded.meta.json`;
 export const GIT_MIN_VERSION = '2.18';
 
 /**

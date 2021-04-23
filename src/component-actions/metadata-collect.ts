@@ -1,6 +1,6 @@
-import { GLOBAL_PIPELINE_CONFIG_URI, UPLOADED_METADATA_TMPDIR } from '../index';
+import { GLOBAL_PIPELINE_CONFIG_URI, UPLOADED_METADATA_PATH } from '../index';
 import { name as pkgName } from '../../package.json';
-import { ComponentAction } from '../../types/global';
+import { CloneOptions, ComponentAction, NodeOptions } from '../../types/global';
 import { ComponentActionError } from '../error';
 import { setupEnv } from '../utils/env';
 import { installNode } from '../utils/install';
@@ -34,24 +34,32 @@ export default async function (
 
   options.npmToken = options.npmToken || undefined;
   options.uploadArtifact = !!options.uploadArtifact;
-  options.repository = options.repository ?? true;
-  options.node = options.node ?? true;
   options.enableFastSkips = options.enableFastSkips ?? true;
+
+  options.repository =
+    options.repository === false
+      ? false
+      : {
+          branchOrTag: currentBranch,
+          checkoutRef: context.sha,
+          fetchDepth: 1,
+          repositoryName: context.repo.repo,
+          repositoryOwner: context.repo.owner,
+          repositoryPath: '.',
+          ...(typeof options.repository != 'boolean' ? options.repository : {})
+        };
+
+  options.node =
+    options.node === false
+      ? false
+      : {
+          version: 'latest',
+          ...(typeof options.node != 'boolean' ? options.node : {})
+        };
 
   if (options.repository) {
     debug(`cloning repository`);
-    await cloneRepository(
-      (options.repository = {
-        branchOrTag: currentBranch,
-        checkoutRef: context.sha,
-        fetchDepth: 1,
-        repositoryName: context.repo.repo,
-        repositoryOwner: context.repo.owner,
-        repositoryPath: '.',
-        ...(typeof options.repository != 'boolean' ? options.repository : {})
-      }),
-      options.githubToken
-    );
+    await cloneRepository(options.repository as CloneOptions, options.githubToken);
   } else debug('skipped cloning repository');
 
   debug(`downloading global default metadata from ${GLOBAL_PIPELINE_CONFIG_URI}`);
@@ -81,7 +89,7 @@ export default async function (
     if (e instanceof Error && e.message.includes(' access ')) {
       debug(`${localConfigPath} is missing: ${e}`);
       core.warning(
-        `no local pipeline config loaded: missing pipeline configuration file`
+        'no local pipeline config loaded: missing pipeline configuration file'
       );
     } else {
       throw new ComponentActionError(`failed to import ${localConfigPath}: ${e}`);
@@ -160,20 +168,18 @@ export default async function (
     metadata.releaseRepoOwnerWhitelist.includes(context.repo.owner.toLowerCase()) &&
     metadata.releaseActorWhitelist.includes(context.actor) &&
     context.eventName != 'pull_request';
+
   metadata.canAutomerge =
     metadata.automergeActorWhitelist.includes(context.actor) &&
     context.eventName == 'pull_request' &&
     !context.payload.pull_request?.draft;
 
   if (options.node) {
-    debug(`setting up node`);
-    const opts = (options.node = {
-      version: 'latest',
-      ...(typeof options.node != 'boolean' ? options.node : {})
-    });
-
-    debug(`installing node version ${opts.version}`);
-    await installNode({ version: opts.version }, options.npmToken);
+    debug(`installing node version ${options.node.version}`);
+    await installNode(
+      { version: (options.node as NodeOptions).version },
+      options.npmToken
+    );
   }
 
   let packageConfig: Partial<typeof import('../../package.json')> = {};
@@ -204,7 +210,7 @@ export default async function (
     if (e instanceof Error && e.message.includes(' access ')) {
       debug(`${releaseConfigPath} is missing: ${e}`);
       core.warning(
-        `no release config loaded: missing local semantic-release configuration file`
+        'no release config loaded: missing local semantic-release configuration file'
       );
     } else {
       throw new ComponentActionError(`failed to import ${releaseConfigPath}: ${e}`);
@@ -237,13 +243,23 @@ export default async function (
   debug('metadata: %O', metadata);
 
   if (options.uploadArtifact) {
-    writeFileSync(UPLOADED_METADATA_TMPDIR, JSON.stringify(metadata));
+    const artifactKey = `metadata-${process.env.RUNNER_OS}-${metadata.commitSha}`;
+    debug(`uploading path ${UPLOADED_METADATA_PATH} to artifact key ${artifactKey}`);
+
+    writeFileSync(UPLOADED_METADATA_PATH, JSON.stringify(metadata));
+
     await uploadPaths(
-      [UPLOADED_METADATA_TMPDIR],
-      `metadata-${process.env.RUNNER_OS}-${metadata.commitSha}`,
+      [UPLOADED_METADATA_PATH],
+      artifactKey,
       metadata.artifactRetentionDays
     );
   } else debug('not uploading metadata artifact');
+
+  if (options.forceWarnings && (metadata.debugString || process.env.DEBUG)) {
+    core.warning(
+      `PIPELINE IS RUNNING IN DEBUG MODE: '${metadata.debugString || process.env.DEBUG}'`
+    );
+  }
 
   return metadata;
 }
