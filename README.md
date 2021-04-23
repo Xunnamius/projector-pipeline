@@ -54,18 +54,26 @@ directly in your workflows:
 [_Unprivileged_][3]. Audits a project for security vulnerabilities. Currently, all
 auditing is handled by `npm audit`.
 
+Uses `metadata-collect` under the hood.
+
 **[`build`][28]**\
 [_Unprivileged_][3]. Builds a project's distributables via `npm run build` and uploads
 them as an artifact for use by `smart-deploy`. This component action expects coverage
 data to be available in the cache at runtime. Hence, this component action must always
 run _after_ `test-unit`.
 
+Uses `metadata-collect` under the hood.
+
 **[`cleanup-npm`][29]**\
 [_Privileged_][3]. Cleans up package metadata (e.g. pruning unused dist-tags) after
 branch deletion.
 
+Uses `metadata-collect` under the hood.
+
 **[`lint`][30]**\
 [_Unprivileged_][3]. Lints project source via `npm run lint`.
+
+Uses `metadata-collect` under the hood.
 
 **[`metadata-collect`][31]**\
 [_Unprivileged_][3]. Checks out and configures the repository, installs and configures
@@ -74,13 +82,10 @@ actions. Must run only in unprivileged contexts.
 
 It is usually not necessary to invoke this component action manually in
 workflows that invoke other component actions; this is because the other actions
-invoke this action internally. However, it _is_ necessary to invoke this action
-manually when you expect to trigger a workflow that invokes the
-`metadata-download` component action.
-
-When invoked internally by another component action, any options passed to the
-invoking action will also be recognized by this action, even if the invoking
-action doesn't recognize any options by itself.
+invoke this action internally. When invoked internally by another component
+action, any options passed to the invoking action will also be recognized by
+this action, even if the invoking action doesn't recognize any options by
+itself.
 
 **[`metadata-download`][32]**\
 [_Unprivileged_][3]. Functionally equivalent to `metadata-collect`, except the metadata
@@ -96,42 +101,56 @@ itself.
 
 **[`smart-deploy`][33]**\
 [_Privileged_][3]. Uploads code coverage data if available, verifies actor permissions,
-and checks for projector template updates. Uses `metadata-download` under the hood.
+and checks for [Projector template](https://github.com/Xunnamius/projector) updates.
+Uses `metadata-download` under the hood.
 
-If an update is available, a new PR will be generated. If the pipeline was
-triggered by a PR event, an attempt will be made to auto-merge that PR before
-generating and submitting the new PR. Regardless, the current pipeline run will
-be aborted and a superseding pipeline run will be triggered by the new PR.
+If a Projector template update is available, a new PR will be generated. If the
+pipeline was triggered by a PR event, an attempt will be made to auto-merge that
+PR before generating and submitting the new PR. Regardless, the current pipeline
+run will be aborted and a superseding pipeline run will be triggered by the new
+PR.
 
-Otherwise if no update is available, and the pipeline was not triggered by a PR
-event, semantic-release and related scripts are executed next, potentially
-resulting in package releases and/or software deployments. If instead the
-pipeline was triggered by a PR event, the PR will be auto-merged if eligible
-(see `metadata-collect`). Certain failing merges will be automatically
-re-attempted using configurable exponential back-off.
+Otherwise, if the pipeline run was not triggered by a PR event, semantic-release
+and related scripts are executed next, potentially resulting in package releases
+and/or software deployments. If instead the pipeline was triggered by a PR
+event, the PR will be auto-merged if eligible (see `metadata-collect`). Certain
+failing merges will be automatically re-attempted using configurable exponential
+back-off.
 
 **[`test-integration-client`][34]**\
 [_Unprivileged_][3]. Runs all bespoke integration tests via `npm run test-integration-client`.
+
+Uses `metadata-collect` under the hood.
 
 **[`test-integration-externals`][35]**\
 [_Unprivileged_][3]. Runs all integration tests specific to project externals via
 `npm run test-integration-externals`.
 
+Uses `metadata-collect` under the hood.
+
 **[`test-integration-node`][36]**\
 [_Unprivileged_][3]. Runs all Node-specific integration tests via `npm run test-integration-node`.
 
+Uses `metadata-collect` under the hood.
+
 **[`test-integration-webpack`][37]**\
 [_Unprivileged_][3]. Runs all Webpack-specific integration tests via `npm run test-integration-webpack`.
+
+Uses `metadata-collect` under the hood.
 
 **[`test-unit`][38]**\
 [_Unprivileged_][3]. Runs all unit tests via `npm run test-unit` and caches coverage
 data for use by `build`. Hence, this component action must always run _before_ `build`.
 
+Uses `metadata-collect` under the hood.
+
 **[`verify-npm`][39]**\
-[_Privileged_][3]. Performs post-release package verification, e.g. ensure `npm install`
+[_Unprivileged_][3]. Performs post-release package verification, e.g. ensure `npm install`
 and related scripts function without errors. This action is best invoked several
 minutes _after_ a release has occurred so that release channels have a chance to
 update their caches.
+
+Uses `metadata-collect` under the hood.
 
 ## Usage: GitHub Actions
 
@@ -258,8 +277,8 @@ with:
     {
       "github-token": "your-github-pat-here",
       "upload-artifact": true,
-      "checkout": {
-        "persistCredentials": true
+      "repository": {
+        "repositoryName": 'some-other-repo'
       },
       "node": false
     }
@@ -270,13 +289,14 @@ with:
 This action accepts an `options` JSON string input with the following properties
 and constraints:
 
-| Name              | Type                                 | Default | Description                                                                                                                                                                                                                              |
-| :---------------- | :----------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `github-token`    | _`string`_                           | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                                   |
-| `npm-token`       | _`string`_                           | (none)  | An NPM access token with read-write access to the appropriate package(s).                                                                                                                                                                |
-| `upload-artifact` | _`boolean`_                          | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action.                                                                       |
-| `repository`      | _`boolean \| Partial<CloneOptions>`_ | `true`  | If _truthy_, the runtime repository's working tree will be checked out into the current working directory. If `repository` is a [`CloneOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23]. |
-| `node`            | _`boolean \| Partial<NodeOptions>`_  | `true`  | If _truthy_, node will be downloaded and installed into the runtime and `PATH`. If `node` is a [`NodeOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23].                                   |
+| Name                 | Type                                 | Default | Description                                                                                                                                                                                                                              |
+| :------------------- | :----------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-token`       | _`string`_                           | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                                   |
+| `npm-token`          | _`string`_                           | (none)  | An NPM access token with read-write access to the appropriate package(s).                                                                                                                                                                |
+| `issue-all-warnings` | _`boolean`_                          | `false` | If `true`, warnings that are usually hidden, like the pipeline debug warning, will be issued. This should only be enabled once per workflow file for aesthetic reasons.                                                                  |
+| `upload-artifact`    | _`boolean`_                          | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action.                                                                       |
+| `repository`         | _`boolean \| Partial<CloneOptions>`_ | `true`  | If _truthy_, the runtime repository's working tree will be checked out into the current working directory. If `repository` is a [`CloneOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23]. |
+| `node`               | _`boolean \| Partial<NodeOptions>`_  | `true`  | If _truthy_, node will be downloaded and installed into the runtime and `PATH`. If `node` is a [`NodeOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23].                                   |
 
 See also: [configuring the pipeline][23].
 
@@ -308,9 +328,13 @@ with:
 This action accepts an `options` JSON string input with the following properties
 and constraints:
 
-| Name           | Type       | Default | Description                                                                                                                                                                      |
-| :------------- | :--------- | :------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `github-token` | _`string`_ | (none)  | **[REQUIRED]** A GitHub access token with read-write access to the appropriate repository or repositories. `${{ secrets.GH_TOKEN }}` is usually the right value for this option. |
+| Name               | Type                                 | Default | Description                                                                                                                                                                                                                         |
+| :----------------- | :----------------------------------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-token`     | _`string`_                           | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                              |
+| `npm-token`        | _`string`_                           | (none)  | An NPM access token with read-write access to the appropriate package(s).                                                                                                                                                           |
+| `reissue-warnings` | _`boolean`_                          | `false` | If `true`, most pipeline warnings triggered by the downloaded metadata will be reissued. These warnings are always reported by the `metadata-collect` component action already, usually making reissuing the warnings redundant.    |
+| `repository`       | _`boolean \| Partial<CloneOptions>`_ | `true`  | If _truthy_, the runtime repository will be installed checked out into the current working directory. If `repository` is a [`CloneOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23]. |
+| `node`             | _`boolean \| Partial<NodeOptions>`_  | `true`  | If _truthy_, node will be downloaded and installed into the runtime and `PATH`. If `node` is a [`NodeOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23].                              |
 
 See also: [configuring the pipeline][23].
 
@@ -663,6 +687,4 @@ information.
 [38]: #test-unit
 [39]: #verify-npm
 [40]: #usage-npm-package
-[41]: https://github.com/actions/checkout
-[42]: https://github.com/actions/node
 [43]: https://github.com/Xunnamius/projector-pipeline/blob/main/types/global.ts
