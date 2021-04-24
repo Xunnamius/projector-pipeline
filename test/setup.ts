@@ -19,12 +19,15 @@ const debug = debugFactory(`${pkgName}:jest-setup`);
 debug(`pkgName: "${pkgName}"`);
 debug(`pkgVersion: "${pkgVersion}"`);
 
-// TODO: XXX: add this to @ergodark/types:
+// TODO: XXX: add all that follows to @ergodark/types (renamed to @xunnamius/types):
+
 export function asMockedFunction<T extends AnyFunction = never>(): jest.MockedFunction<T>;
 export function asMockedFunction<T extends AnyFunction>(fn: T): jest.MockedFunction<T>;
 export function asMockedFunction<T extends AnyFunction>(fn?: T): jest.MockedFunction<T> {
   return ((fn || jest.fn()) as unknown) as jest.MockedFunction<T>;
 }
+
+// TODO: XXX (end "all that follows")
 
 // TODO: XXX: make this into a separate (mock-argv) package (along w/ the below)
 export type MockArgvOptions = {
