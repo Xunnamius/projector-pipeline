@@ -16,7 +16,10 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
     commitSha,
     artifactRetentionDays,
     hasDocs
-  } = await metadataCollect(context, options);
+  } = await metadataCollect(context, {
+    enableFastSkips: true,
+    ...options
+  });
 
   if (!shouldSkipCi) {
     const os = process.env.RUNNER_OS;

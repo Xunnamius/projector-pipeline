@@ -9,6 +9,7 @@ import debugFactory from 'debug';
 import core from '@actions/core';
 import os from 'os';
 
+import type { JsonRegExp } from '@xunnamius/types';
 import type { Metadata, RunnerContext, InvokerOptions } from '../../types/global';
 
 const debug = debugFactory(`${pkgName}:${ComponentAction.MetadataDownload}`);
@@ -37,6 +38,18 @@ export default async function (
 
   try {
     metadata = require(UPLOADED_METADATA_PATH);
+
+    metadata.ciSkipRegex &&
+      (metadata.ciSkipRegex = RegExp(
+        (metadata.ciSkipRegex as JsonRegExp).source,
+        (metadata.ciSkipRegex as JsonRegExp).flags
+      ));
+
+    metadata.cdSkipRegex &&
+      (metadata.cdSkipRegex = RegExp(
+        (metadata.cdSkipRegex as JsonRegExp).source,
+        (metadata.cdSkipRegex as JsonRegExp).flags
+      ));
   } catch (e) {
     throw new ComponentActionError(`failed to import metadata artifact: ${e}`);
   }

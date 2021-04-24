@@ -2,7 +2,11 @@ import { ComponentAction, UPLOADED_METADATA_PATH } from '../src/index';
 import { asMockedFunction, isolatedImport, withMockedEnv } from './setup';
 import { writeFileSync, accessSync } from 'fs';
 import { fetch } from 'isomorphic-json-fetch';
-import { installNode } from '../src/utils/install';
+import {
+  installNode,
+  installDependencies,
+  installPrivilegedDependencies
+} from '../src/utils/install';
 import { toss } from 'toss-expression';
 import * as core from '@actions/core';
 import execa from 'execa';
@@ -23,7 +27,8 @@ import type {
   ExecaReturnType,
   Metadata,
   RunnerContext,
-  LocalPipelineConfig
+  LocalPipelineConfig,
+  InvokerOptions
 } from '../types/global';
 
 const DUMMY_CONTEXT: ReadonlyDeep<RunnerContext> = {
@@ -88,6 +93,10 @@ const mockedUploadPaths = asMockedFunction(uploadPaths);
 const mockedDownloadPaths = asMockedFunction(downloadPaths);
 const mockedCachePaths = asMockedFunction(cachePaths);
 const mockedUncachePaths = asMockedFunction(uncachePaths);
+const mockedInstallDependencies = asMockedFunction(installDependencies);
+const mockedInstallPrivilegedDependencies = asMockedFunction(
+  installPrivilegedDependencies
+);
 
 const mockMetadata: Partial<Metadata> = {};
 const mockPackageConfig: Partial<typeof import('../package.json')> = {};
@@ -198,7 +207,12 @@ describe(`audit action`, () => {
     await expect(
       (await isolatedActionImport(ComponentAction.Audit))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
+
     expect(mockedExeca).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
@@ -256,13 +270,261 @@ describe('build action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallDependencies).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
 describe('cleanup-npm action', () => {
-  test.todo('[cleanup-npm] succeeds if ...');
-  test.todo('[cleanup-npm] fails if...');
+  it('[cleanup-npm] throws if missing options.npmToken', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {})
+    ).rejects.toMatchObject({ message: expect.stringContaining('`npmToken`') });
+  });
+
+  it('[cleanup-npm] respects metadata.npmIgnoreDistTags', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.packageName = 'my-fake-pkg';
+    mockMetadata.npmIgnoreDistTags = ['ignore-me'];
+    mockMetadata.releaseBranchConfig = [];
+
+    mockedExeca
+      .mockImplementationOnce(() => (Promise.resolve() as unknown) as ExecaReturnType)
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: ''
+          }) as unknown) as ExecaReturnType
+      )
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: 'latest\ncanary\n5.x\n5.1.x\nsomething-else\nignore-me'
+          }) as unknown) as ExecaReturnType
+      );
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+        npmToken: 'npm-token'
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).not.toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', 'ignore-me'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', 'latest'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', 'canary'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', '5.x'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', '5.1.x'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', 'something-else'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).toBeCalledTimes(8);
+  });
+
+  it('[cleanup-npm] matches release branches to dist tags, deletes others', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.npmIgnoreDistTags = ['latest'];
+    mockMetadata.packageName = 'my-fake-pkg';
+    mockMetadata.releaseBranchConfig = [
+      '+([0-9])?(.{+([0-9]),x}).x',
+      'main',
+      {
+        name: 'canary',
+        channel: 'canary',
+        prerelease: true
+      }
+    ];
+
+    mockedExeca
+      .mockImplementationOnce(() => (Promise.resolve() as unknown) as ExecaReturnType)
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: 'branch-1\nmain\n5.x\n555\ncanary'
+          }) as unknown) as ExecaReturnType
+      )
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: 'latest\ncanary\n5.x\nrelease-5.x\nrelease-555\nsomething-else'
+          }) as unknown) as ExecaReturnType
+      );
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+        npmToken: 'npm-token'
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', 'something-else'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', 'release-555'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).not.toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', 'latest'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).not.toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', '5.x'],
+      expect.anything()
+    );
+
+    expect(mockedExeca).not.toBeCalledWith(
+      'npm',
+      ['dist-tag', 'rm', 'my-fake-pkg', 'release-5.x'],
+      expect.anything()
+    );
+  });
+
+  it('[cleanup-npm] writes npm-token when deleting dist tags', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.packageName = 'my-fake-pkg';
+    mockMetadata.npmIgnoreDistTags = [];
+    mockMetadata.releaseBranchConfig = [];
+
+    mockedExeca
+      .mockImplementationOnce(() => (Promise.resolve() as unknown) as ExecaReturnType)
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: 'canary'
+          }) as unknown) as ExecaReturnType
+      )
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: 'canary'
+          }) as unknown) as ExecaReturnType
+      );
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+        npmToken: 'npm-token'
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockedWriteFileSync).toBeCalledWith(
+      '~/.npmrc',
+      expect.stringContaining('npm-token')
+    );
+  });
+
+  it('[cleanup-npm] throws if token write fails or tag deletion fails', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.npmIgnoreDistTags = [];
+    mockMetadata.releaseBranchConfig = [];
+
+    mockedExeca
+      .mockImplementationOnce(() => (Promise.resolve() as unknown) as ExecaReturnType)
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: 'canary'
+          }) as unknown) as ExecaReturnType
+      )
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: 'canary'
+          }) as unknown) as ExecaReturnType
+      )
+      .mockImplementationOnce(() => toss(new Error('badness error')))
+      .mockImplementationOnce(() => (Promise.resolve() as unknown) as ExecaReturnType)
+      .mockImplementation(
+        () => (Promise.resolve({ stdout: '' }) as unknown) as ExecaReturnType
+      );
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+        npmToken: 'npm-token'
+      })
+    ).rejects.toMatchObject({ message: expect.stringContaining('one or more') });
+
+    mockedWriteFileSync.mockImplementationOnce(() => toss(new Error('another error')));
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+        npmToken: 'npm-token'
+      })
+    ).rejects.toMatchObject({ message: expect.stringContaining('one or more') });
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+        npmToken: 'npm-token'
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('[cleanup-npm] does not throw if dist-tag operation fails', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.npmIgnoreDistTags = [];
+    mockMetadata.releaseBranchConfig = [];
+
+    mockedExeca
+      .mockImplementationOnce(() => (Promise.resolve() as unknown) as ExecaReturnType)
+      .mockImplementationOnce(
+        () =>
+          (Promise.resolve({
+            stdout: 'canary'
+          }) as unknown) as ExecaReturnType
+      )
+      .mockImplementationOnce(() => (Promise.reject() as unknown) as ExecaReturnType);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+        npmToken: 'npm-token'
+      })
+    ).resolves.toBeUndefined();
+  });
 
   it('[cleanup-npm] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -274,13 +536,22 @@ describe('cleanup-npm action', () => {
         npmToken: 'npm-token'
       })
     ).resolves.toBeUndefined();
+
     expect(mockedExeca).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
 describe('lint action', () => {
-  test.todo('[lint] succeeds if ...');
-  test.todo('[lint] fails if...');
+  it('[lint] runs to completion', async () => {
+    expect.hasAssertions();
+    await expect(
+      (await isolatedActionImport(ComponentAction.Lint))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+  });
 
   it('[lint] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -290,7 +561,12 @@ describe('lint action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.Lint))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallDependencies).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
@@ -1466,8 +1742,10 @@ describe('metadata-download action', () => {
     mockMetadata.canRelease = true;
     mockMetadata.canRetryAutomerge = false;
     mockMetadata.canUploadCoverage = true;
-    mockMetadata.cdSkipRegex = /f/;
-    mockMetadata.cdSkipRegex = /g/;
+    // @ts-expect-error: objects are serialized as JsonRegExp
+    mockMetadata.ciSkipRegex = { source: 'f', flags: 'i' };
+    // @ts-expect-error: objects are serialized as JsonRegExp
+    mockMetadata.cdSkipRegex = { source: 'g' };
     mockMetadata.commitSha = 'good-sha';
     mockMetadata.committer = { email: 'good-email', name: 'good-name' };
     mockMetadata.currentBranch = 'good-branch';
@@ -1511,7 +1789,11 @@ describe('metadata-download action', () => {
           githubToken: 'github-token'
         }
       )
-    ).resolves.toStrictEqual(mockMetadata);
+    ).resolves.toStrictEqual({
+      ...mockMetadata,
+      ciSkipRegex: /f/i,
+      cdSkipRegex: /g/
+    });
 
     expect(mockedExeca).not.toBeCalledWith(
       expect.stringContaining('npm'),
@@ -1522,8 +1804,7 @@ describe('metadata-download action', () => {
 });
 
 describe('smart-deploy action', () => {
-  test.todo('[smart-deploy] succeeds if ...');
-  test.todo('[smart-deploy] fails if...');
+  test.todo('[smart-deploy] (todo)');
 
   it('[smart-deploy] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -1538,7 +1819,12 @@ describe('smart-deploy action', () => {
         githubToken: 'github-token'
       })
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallPrivilegedDependencies).not.toBeCalled();
+    expect(mdSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 
   it('[smart-deploy] skipped if `metadata.shouldSkipCd == true`', async () => {
@@ -1554,13 +1840,25 @@ describe('smart-deploy action', () => {
         githubToken: 'github-token'
       })
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallPrivilegedDependencies).not.toBeCalled();
+    expect(mdSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
 describe('test-integration-client action', () => {
-  test.todo('[test-integration-client] succeeds if ...');
-  test.todo('[test-integration-client] fails if...');
+  it('[test-integration-client] runs to completion', async () => {
+    expect.hasAssertions();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestIntegrationClient))(
+        DUMMY_CONTEXT,
+        {}
+      )
+    ).resolves.toBeUndefined();
+  });
 
   it('[test-integration-client] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -1573,13 +1871,25 @@ describe('test-integration-client action', () => {
         {}
       )
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallDependencies).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
 describe('test-integration-externals action', () => {
-  test.todo('[test-integration-externals] succeeds if ...');
-  test.todo('[test-integration-externals] fails if...');
+  it('[test-integration-externals] runs to completion', async () => {
+    expect.hasAssertions();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestIntegrationExternals))(
+        DUMMY_CONTEXT,
+        {}
+      )
+    ).resolves.toBeUndefined();
+  });
 
   it('[test-integration-externals] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -1592,13 +1902,22 @@ describe('test-integration-externals action', () => {
         {}
       )
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallDependencies).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
 describe('test-integration-node action', () => {
-  test.todo('[test-integration-node] succeeds if ...');
-  test.todo('[test-integration-node] fails if...');
+  it('[test-integration-node] runs to completion', async () => {
+    expect.hasAssertions();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestIntegrationNode))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+  });
 
   it('[test-integration-node] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -1608,13 +1927,25 @@ describe('test-integration-node action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.TestIntegrationNode))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallDependencies).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
 describe('test-integration-webpack action', () => {
-  test.todo('[test-integration-webpack] succeeds if ...');
-  test.todo('[test-integration-webpack] fails if...');
+  it('[test-integration-webpack] runs to completion', async () => {
+    expect.hasAssertions();
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestIntegrationWebpack))(
+        DUMMY_CONTEXT,
+        {}
+      )
+    ).resolves.toBeUndefined();
+  });
 
   it('[test-integration-webpack] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -1627,13 +1958,40 @@ describe('test-integration-webpack action', () => {
         {}
       )
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallDependencies).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
 describe('test-unit action', () => {
-  test.todo('[test-unit] succeeds if ...');
-  test.todo('[test-unit] fails if...');
+  it('[test-unit] uploads coverage data only if metadata.canUploadCoverage == true', async () => {
+    expect.hasAssertions();
+
+    await withMockedEnv(
+      async () => {
+        mockMetadata.commitSha = 'sha';
+        mockMetadata.canUploadCoverage = false;
+
+        await expect(
+          (await isolatedActionImport(ComponentAction.TestUnit))(DUMMY_CONTEXT, {})
+        ).resolves.toBeUndefined();
+
+        mockMetadata.canUploadCoverage = true;
+
+        await expect(
+          (await isolatedActionImport(ComponentAction.TestUnit))(DUMMY_CONTEXT, {})
+        ).resolves.toBeUndefined();
+      },
+      { RUNNER_OS: 'fake-os' }
+    );
+
+    expect(mockedCachePaths).toBeCalledWith(['./coverage'], 'coverage-fake-os-sha');
+    expect(mockedInstallDependencies).toBeCalledTimes(2);
+  });
 
   it('[test-unit] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -1643,13 +2001,17 @@ describe('test-unit action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.TestUnit))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
-    expect(mockedExeca).not.toBeCalled();
+
+    expect(mockedInstallDependencies).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });
 
 describe('verify-npm action', () => {
-  test.todo('[verify-npm] succeeds if ...');
-  test.todo('[verify-npm] fails if...');
+  test.todo('[verify-npm] (todo)');
 
   it('[verify-npm] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -1659,7 +2021,12 @@ describe('verify-npm action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
+
     expect(mockedExeca).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 
   it('[verify-npm] skipped if `metadata.shouldSkipCd == true`', async () => {
@@ -1670,6 +2037,11 @@ describe('verify-npm action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
+
     expect(mockedExeca).not.toBeCalled();
+    expect(mcSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+    );
   });
 });

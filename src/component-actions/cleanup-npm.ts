@@ -18,15 +18,23 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
     throw new ComponentActionError('missing required option `npmToken`');
   }
 
-  const { shouldSkipCi, releaseBranchConfig } = await metadataCollect(context, options);
+  const {
+    packageName,
+    shouldSkipCi,
+    releaseBranchConfig,
+    npmIgnoreDistTags
+  } = await metadataCollect(context, {
+    enableFastSkips: true,
+    ...options
+  });
 
   if (!shouldSkipCi) {
     await execa('git', ['remote', 'prune', 'origin'], { stdio: 'inherit' });
-    const { stdout: branchesString } = await execa('git', [
-      'for-each-ref',
-      `--format='%(refname:lstrip=3)'`,
-      'refs/remotes/origin'
-    ]);
+    const { stdout: branchesString } = await execa(
+      'git',
+      ['for-each-ref', `--format='%(refname:lstrip=3)'`, 'refs/remotes/origin'],
+      { stdio: 'inherit' }
+    );
 
     debug(`branchesString: ${branchesString}`);
 
@@ -34,13 +42,13 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
     let distTags: string[];
 
     debug(`saw repo branches: ${repoBranches}`);
-    debug(`saw package name: ${pkgName}`);
+    debug(`saw package name: ${packageName}`);
 
     try {
       const { stdout: distTagsString } = await execa('npm', [
         'dist-tag',
         'list',
-        pkgName
+        packageName
       ]);
 
       debug(`distTagsString: ${distTagsString}`);
@@ -62,14 +70,15 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
     debug(`release branches: ${releaseBranches}`);
 
     const releaseBranchDistTags = releaseBranchConfig
-      .map((branch) => (typeof branch != 'string' ? branch.channel : null))
-      .filter(Boolean);
+      .map((branch) => (typeof branch != 'string' ? branch.channel : false))
+      .filter(Boolean) as string[];
 
     debug(`release branch dist tags: ${releaseBranchDistTags}`);
 
     const matchedTags = distTags.filter(
       (tag) =>
         !releaseBranchDistTags.includes(tag) &&
+        !npmIgnoreDistTags.includes(tag) &&
         releaseBranches.every((branch) => tag != branch && tag != `release-${branch}`)
     );
 
@@ -79,11 +88,13 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
       try {
         writeFileSync('~/.npmrc', `//registry.npmjs.org/:_authToken=${npmToken}`);
         await Promise.all(
-          matchedTags.map((tag) => execa('npm', ['dist-tag', 'rm', pkgName, tag]))
+          matchedTags.map((tag) =>
+            execa('npm', ['dist-tag', 'rm', packageName, tag], { stdio: 'inherit' })
+          )
         );
       } catch (e) {
         throw new ComponentActionError(
-          `some outdated dist tags may not have been deleted (${e})`
+          `one or more outdated dist tags were not pruned: ${e}`
         );
       }
     } else debug('dist tags OK!');

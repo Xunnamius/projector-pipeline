@@ -28,10 +28,10 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
 
   // TODO: do not checkout if only automerge
   // TODO: replace all metadata calls with destructuring style project-wide
-  const { shouldSkipCi, shouldSkipCd, commitSha } = await metadataDownload(
-    context,
-    options
-  );
+  const { shouldSkipCi, shouldSkipCd, commitSha } = await metadataDownload(context, {
+    enableFastSkips: true,
+    ...options
+  });
 
   if (!shouldSkipCi && !shouldSkipCd) {
     // * Prepare environment

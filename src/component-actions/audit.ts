@@ -9,7 +9,10 @@ import type { RunnerContext, InvokerOptions } from '../../types/global';
 const debug = debugFactory(`${pkgName}:${ComponentAction.Audit}`);
 
 export default async function (context: RunnerContext, options: InvokerOptions) {
-  const { shouldSkipCi, npmAuditFailLevel } = await metadataCollect(context, options);
+  const { shouldSkipCi, npmAuditFailLevel } = await metadataCollect(context, {
+    enableFastSkips: true,
+    ...options
+  });
 
   if (!shouldSkipCi) {
     await execa('npm', ['audit', `--audit-level=${npmAuditFailLevel}`], {

@@ -11,10 +11,10 @@ import type { RunnerContext, InvokerOptions } from '../../types/global';
 const debug = debugFactory(`${pkgName}:${ComponentAction.TestUnit}`);
 
 export default async function (context: RunnerContext, options: InvokerOptions) {
-  const { shouldSkipCi, canUploadCoverage, commitSha } = await metadataCollect(
-    context,
-    options
-  );
+  const { shouldSkipCi, canUploadCoverage, commitSha } = await metadataCollect(context, {
+    enableFastSkips: true,
+    ...options
+  });
   const os = process.env.RUNNER_OS;
 
   if (!shouldSkipCi) {

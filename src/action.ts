@@ -1,5 +1,12 @@
 import { name as pkgName } from '../package.json';
+import { ComponentAction } from '../types/global';
 import { context } from '@actions/github';
+import debugFactory from 'debug';
+import execa from 'execa';
+
+const debug = debugFactory(`${pkgName}:${ComponentAction.VerifyNpm}`);
+
+void context, execa, debug;
 
 // TODO: determine matrices
 // TODO: add all secrets to core.setSecret

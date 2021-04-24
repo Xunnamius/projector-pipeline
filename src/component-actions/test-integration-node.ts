@@ -10,7 +10,10 @@ import type { RunnerContext, InvokerOptions } from '../../types/global';
 const debug = debugFactory(`${pkgName}:${ComponentAction.TestIntegrationNode}`);
 
 export default async function (context: RunnerContext, options: InvokerOptions) {
-  const { shouldSkipCi } = await metadataCollect(context, options);
+  const { shouldSkipCi } = await metadataCollect(context, {
+    enableFastSkips: true,
+    ...options
+  });
 
   if (!shouldSkipCi) {
     await installDependencies();
