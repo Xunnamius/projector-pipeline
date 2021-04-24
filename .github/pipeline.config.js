@@ -40,7 +40,7 @@ module.exports = {
   // ! private repositories. Watch your usage numbers!
   // canRetryAutomerge: true,
   //
-  // * NPM audit will fail upon encountering problems of at least the specified
+  // * Npm audit will fail upon encountering problems of at least the specified
   // * severity.
   // npmAuditFailLevel: 'high',
   //

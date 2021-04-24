@@ -176,7 +176,7 @@ export type LocalPipelineConfig = {
     email: string;
   };
   /**
-   * The NPM security audit threshold that if met immediately fails the
+   * The npm security audit threshold that if met immediately fails the
    * pipeline.
    */
   npmAuditFailLevel: string;
@@ -208,9 +208,9 @@ export type GlobalPipelineConfig = {
    */
   automergeActorWhitelist: string[];
   /**
-   * Names of NPM dist-tags that will never be automatically pruned during
-   * cleanup workflows. Those dist-tags that have corresponding release
-   * branches will never be pruned regardless of this setting.
+   * A regular expression that matches the npm dist-tags that will never be
+   * pruned during cleanup workflows. Those dist-tags that have corresponding
+   * release branches are already ignored regardless of this setting.
    */
   npmIgnoreDistTags: string[];
 } & Omit<LocalPipelineConfig, 'debugString'>;
@@ -269,13 +269,13 @@ export type InvokerOptions = {
   node?: boolean | Partial<NodeOptions>;
 
   /**
-   * Contains the NPM token. Usually `${{ secrets.NPM_TOKEN }}` is the correct
+   * Contains the npm token. Usually `${{ secrets.NPM_TOKEN }}` is the correct
    * value. Do not specify if not required.
    */
   npmToken?: string;
 
   /**
-   * Contains the NPM token. Usually `${{ secrets.GH_TOKEN }}` is the correct
+   * Contains the npm token. Usually `${{ secrets.GH_TOKEN }}` is the correct
    * value. Do not specify if not required.
    */
   githubToken?: string;

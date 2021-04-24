@@ -53,7 +53,7 @@ the repository root.
 
 Additionally, the repository must have a `main` branch. `main` is the only
 branch that must remain permanently; other branches are automatically deleted
-after being merged into `main`. For NPM package projects, this also means
+after being merged into `main`. For npm package projects, this also means
 `latest` is the only permanent [dist-tag][36].
 
 > The term "merged" as used here and elsewhere in this document connotes a
@@ -115,12 +115,12 @@ entire pipeline.
 Four suites of integration tests are supported: _node_, _externals_, _client_
 (for browsers/cli/etc), and _webpack_. The presence of these test suites is
 picked up by `grep`-ing the output of `npm run list-tasks` to search for the
-presence of the NPM script keys `test-integration-node`,
+presence of the npm script keys `test-integration-node`,
 `test-integration-externals`, `test-integration-client`, or
 `test-integration-webpack` respectively.
 
 The `build-test` workflow also supports an optional documentation build step via
-the `build-docs` NPM script key. A warning will be generated for projects that
+the `build-docs` npm script key. A warning will be generated for projects that
 lack this key. Further, CI will fail if there is a `build-externals` key without
 a `test-integration-externals` key or vice-versa.
 
@@ -238,12 +238,10 @@ The pipeline recognizes two configurations files:
   exists in the repository. See [this example][21] for more details.
 
 For more complex use cases, options unavailable through the configuration files
-can be passed directly to the
-[component action invoker](https://github.com/marketplace/actions/projector-pipeline)
-through the pipeline's GitHub Marketplace Action and your project's workflow
-files. Further, all Marketplace Action functionality is available through the
-[`@xunnamius/projector-pipeline`](https://www.npmjs.com/package/@xunnamius/projector-pipeline)
-npm library directly.
+can be passed directly to the [component action invoker][22] through the
+pipeline's GitHub Marketplace Action and your project's workflow files. Further,
+all Marketplace Action functionality is available through the
+[`@xunnamius/projector-pipeline`][23] npm library directly.
 
 ## Caveats
 
@@ -323,3 +321,5 @@ release and a corresponding confusingly-empty (and ugly) entry in
 [20]:
   https://github.com/xunnamius/projector-pipeline/blob/main/dist/pipeline.config.js
 [21]: .github/pipeline.config.js
+[22]: https://github.com/marketplace/actions/projector-pipeline
+[23]: https://www.npmjs.com/package/@xunnamius/projector-pipeline

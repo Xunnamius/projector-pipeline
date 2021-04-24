@@ -53,11 +53,11 @@ module.exports = {
   // ! private repositories!
   canRetryAutomerge: true,
 
-  // * NPM audit will fail upon encountering problems of at least the specified
+  // * Npm audit will fail upon encountering problems of at least the specified
   // * severity.
   npmAuditFailLevel: 'high',
 
-  // * Names of NPM dist-tags that will never be automatically pruned during
+  // * Names of npm dist-tags that will never be automatically pruned during
   // * cleanup workflows. Those dist-tags that have corresponding release
   // * branches will never be pruned regardless of this setting.
   // ? (this key can only appear in global pipeline config and not local)

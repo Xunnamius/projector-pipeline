@@ -9,7 +9,7 @@
 [![Pull requests][badge-pulls]][link-pulls]
 [![codecov][badge-codecov]][link-codecov]
 [![Source license][badge-license]][link-license]
-[![NPM version][badge-npm]][link-npm]
+[![npm version][badge-npm]][link-npm]
 [![semantic-release][badge-semantic-release]][link-semantic-release]
 
 <!-- badges-end -->
@@ -39,7 +39,7 @@ configurations, see [ARCHITECTURE.md][architecture].
   - [`test-integration-webpack`][37]
   - [`test-unit`][38]
   - [`verify-npm`][39]
-- [Usage: NPM Package][40]
+- [Usage: npm Package][40]
   - [Install][18]
   - [Example][19]
 - [Documentation][20]
@@ -101,8 +101,8 @@ itself.
 
 **[`smart-deploy`][33]**\
 [_Privileged_][3]. Uploads code coverage data if available, verifies actor permissions,
-and checks for [Projector template](https://github.com/Xunnamius/projector) updates.
-Uses `metadata-download` under the hood.
+and checks for [Projector template][2] updates. Uses `metadata-download` under the
+hood.
 
 If a Projector template update is available, a new PR will be generated. If the
 pipeline was triggered by a PR event, an attempt will be made to auto-merge that
@@ -231,7 +231,7 @@ and constraints:
 
 | Name        | Type       | Default | Description                                                                              |
 | :---------- | :--------- | :------ | :--------------------------------------------------------------------------------------- |
-| `npm-token` | _`string`_ | (none)  | **[REQUIRED]** An NPM access token with read-write access to the appropriate package(s). |
+| `npm-token` | _`string`_ | (none)  | **[REQUIRED]** An npm access token with read-write access to the appropriate package(s). |
 
 See also: [configuring the pipeline][23].
 
@@ -293,7 +293,7 @@ and constraints:
 | Name                 | Type                                 | Default | Description                                                                                                                                                                                                                              |
 | :------------------- | :----------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `github-token`       | _`string`_                           | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                                   |
-| `npm-token`          | _`string`_                           | (none)  | An NPM access token with read-write access to the appropriate package(s).                                                                                                                                                                |
+| `npm-token`          | _`string`_                           | (none)  | An npm access token with read-write access to the appropriate package(s).                                                                                                                                                                |
 | `issue-all-warnings` | _`boolean`_                          | `false` | If `true`, warnings that are usually hidden, like the pipeline debug warning, will be issued. This should only be enabled once per workflow file for aesthetic reasons.                                                                  |
 | `upload-artifact`    | _`boolean`_                          | `false` | If `true`, a metadata artifact will be uploaded. This artifact can then be downloaded in the GitHub Actions UI or used by the `metadata-collect` component action.                                                                       |
 | `repository`         | _`boolean \| Partial<CloneOptions>`_ | `true`  | If _truthy_, the runtime repository's working tree will be checked out into the current working directory. If `repository` is a [`CloneOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23]. |
@@ -332,7 +332,7 @@ and constraints:
 | Name               | Type                                 | Default | Description                                                                                                                                                                                                                         |
 | :----------------- | :----------------------------------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `github-token`     | _`string`_                           | (none)  | **[REQUIRED]** A GitHub access token with read access to the appropriate repository or repositories. `${{ github.token }}` is usually the right value for this option.                                                              |
-| `npm-token`        | _`string`_                           | (none)  | An NPM access token with read-write access to the appropriate package(s).                                                                                                                                                           |
+| `npm-token`        | _`string`_                           | (none)  | An npm access token with read-write access to the appropriate package(s).                                                                                                                                                           |
 | `reissue-warnings` | _`boolean`_                          | `false` | If `true`, most pipeline warnings triggered by the downloaded metadata will be reissued. These warnings are always reported by the `metadata-collect` component action already, usually making reissuing the warnings redundant.    |
 | `repository`       | _`boolean \| Partial<CloneOptions>`_ | `true`  | If _truthy_, the runtime repository will be installed checked out into the current working directory. If `repository` is a [`CloneOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23]. |
 | `node`             | _`boolean \| Partial<NodeOptions>`_  | `true`  | If _truthy_, node will be downloaded and installed into the runtime and `PATH`. If `node` is a [`NodeOptions`-like object][43], it is used as configuration. See also: [configuring the pipeline][23].                              |
@@ -352,7 +352,7 @@ metadata and build artifacts to be available, the former uploaded by
 `metadata-collect` and the latter by `build`.
 
 This component action also downloads a [remote `package.json` file][25] during
-operation. This file is used to safely install NPM dependencies in privileged
+operation. This file is used to safely install npm dependencies in privileged
 environments. The permanent URI for this download is:
 [https://github.com/xunnamius/projector-pipeline/raw/main/dist/privileged/package.json][26]
 
@@ -379,7 +379,7 @@ and constraints:
 | Name             | Type       | Default | Description                                                                                                            |
 | :--------------- | :--------- | :------ | :--------------------------------------------------------------------------------------------------------------------- |
 | `github-token`   | _`string`_ | (none)  | **[REQUIRED]** A GitHub access token with read-write access to the appropriate repository or repositories.             |
-| `npm-token`      | _`string`_ | (none)  | **[REQUIRED]** An NPM access token with read-write access to the appropriate package(s).                               |
+| `npm-token`      | _`string`_ | (none)  | **[REQUIRED]** An npm access token with read-write access to the appropriate package(s).                               |
 | `codecov-token`  | _`string`_ | (none)  | A Codecov token corresponding to the target repository. Not necessary and should be omitted for public repositories.   |
 | `gpg-priv-key`   | _`string`_ | (none)  | **[REQUIRED]** The GPG private key used for git signing purposes. This key must correspond to [`committer.email`][23]. |
 | `gpg-passphrase` | _`string`_ | (none)  | **[REQUIRED]** The passphrase that unlocks `gpg-priv-key`.                                                             |
@@ -522,14 +522,14 @@ This component action does not recognize any options.
 
 This component action has no outputs.
 
-## Usage: NPM Package
+## Usage: npm Package
 
-Each component action can also be imported and run locally via unified NPM
+Each component action can also be imported and run locally via unified npm
 package.
 
 ### Install
 
-> Note: NPM versions >=7 may need `npm install --legacy-peer-deps` until
+> Note: npm versions >=7 may need `npm install --legacy-peer-deps` until
 > [upstream peer dependency problems are resolved][1].
 
 ```shell
@@ -589,7 +589,7 @@ console.log(result.outputs['should-skip-ci']); // Prints a boolean
 
 ## Documentation
 
-Further documentation for using the NPM package can be found under
+Further documentation for using the npm package can be found under
 [`docs/`][docs]. See [ARCHITECTURE.md][architecture] and
 [CONTRIBUTING.md][contributing] for more details on the pipeline.
 
