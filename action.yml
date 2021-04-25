@@ -29,18 +29,19 @@ inputs:
 outputs:
   should-skip-ci:
     description:
-      "[string] `'true'` if the CI and CD pipeline stages should be skipped;
-      `'false'` or empty otherwise. See also: `ciSkipRegex` in
+      "[boolean string] `'true'` if the CI and CD pipeline stages should be
+      skipped; `'false'` otherwise. See also: `ciSkipRegex` in
       `pipeline.config.js`."
   should-skip-cd:
     description:
-      "[string] `'true'` if ONLY the CD pipeline stage should be skipped;
-      `'false'` or empty otherwise. Always `'true'` when `should-skip-ci` is
-      `'true'`. See also: `cdSkipRegex` in `pipeline.config.js`."
+      "[boolean string] `'true'` if ONLY the CD pipeline stage should be
+      skipped; `'false'` or empty otherwise. Always `'true'` when
+      `should-skip-ci` is `'true'`. `'false'` otherwise. See also: `cdSkipRegex`
+      in `pipeline.config.js`."
   node-version:
     description:
-      '[string] The default Node version to be used by each stage. See also:
-      `nodeCurrentVersion` in `pipeline.config.js`.'
+      '[semver string] The default Node version to be used by each stage. See
+      also: `nodeCurrentVersion` in `pipeline.config.js`.'
   node-matrix:
     description:
       '[json string] A matrix defining a range of Node versions to test against.
@@ -60,63 +61,65 @@ outputs:
   pr-number:
     description:
       "[number|string] The GitHub PR number corresponding to this pipeline run
-      or `'null'` (or empty) if this run was not triggered by a PR."
+      or `'null'` if this run was not triggered by a PR."
   can-release:
     description:
-      "[string] `'true'` if this run was not triggered by a PR, the repository
-      is in a whitelisted namespace/owner, and the GitHub user responsible for
-      triggering the pipeline also has permission to approve a release. See
-      `releaseRepoOwnerWhitelist` and `releaseActorWhitelist` in (global)
-      `pipeline.config.js`."
+      "[boolean string] `'true'` if this run was not triggered by a PR, the
+      repository is in a whitelisted namespace/owner, and the GitHub user
+      responsible for triggering the pipeline also has permission to approve a
+      release. `'false'` otherwise. See `releaseRepoOwnerWhitelist` and
+      `releaseActorWhitelist` in (global) `pipeline.config.js`."
   can-automerge:
     description:
-      "[string] `'true'` if this run was triggered by a PR and the GitHub actor
-      responsible has explicit permission to merge PRs. See also:
-      `automergeCanRetry` and `automergeActorWhitelist` in (global)
-      `pipeline.config.js`."
+      "[boolean string] `'true'` if this run was triggered by a PR and the
+      GitHub actor responsible has explicit permission to merge PRs. `'false'`
+      otherwise. See also: `automergeCanRetry` and `automergeActorWhitelist` in
+      (global) `pipeline.config.js`."
   can-retry-automerge:
     description:
-      "[string] `'true'` if automatic merges can be retried. See also:
-      `automergeCanRetry` in `pipeline.config.js`."
+      "[boolean string] `'true'` if automatic merges can be retried. `'false'`
+      otherwise. See also: `automergeCanRetry` in `pipeline.config.js`."
   can-upload-coverage:
     description:
-      "[string] `'true'` if the pipeline should attempt to upload coverage data
-      at some point. See also: `uploadCodeCoverage` in `pipeline.config.js`."
+      "[boolean string] `'true'` if the pipeline should attempt to upload
+      coverage data at some point. `'false'` otherwise. See also:
+      `uploadCodeCoverage` in `pipeline.config.js`."
   has-deploy:
     description:
-      "[string] `'true'` if a *deploy* script exists in the root `package.json`
-      file."
+      "[boolean string] `'true'` if a *deploy* script exists in the root
+      `package.json` file. `'false'` otherwise."
   has-private:
     description:
-      "[string] `'true'` if the *private* key is `true` in the root
-      `package.json` file."
+      "[boolean string] `'true'` if the *private* key is `true` in the root
+      `package.json` file. `'false'` otherwise."
   has-bin:
     description:
-      "[string] `'true'` if a *bin* key exists in the root `package.json` file."
+      "[boolean string] `'true'` if a *bin* key exists in the root
+      `package.json` file. `'false'` otherwise."
   has-docs:
     description:
-      "[string] `'true'` if a *build-docs* script exists in the root
-      `package.json` file."
+      "[boolean string] `'true'` if a *build-docs* script exists in the root
+      `package.json` file. `'false'` otherwise."
   has-externals:
     description:
-      "[string] `'true'` if a *build-externals* script exists in the root
-      `package.json` file."
+      "[boolean string] `'true'` if a *build-externals* script exists in the
+      root `package.json` file. `'false'` otherwise."
   has-integration-node:
     description:
-      "[string] `'true'` if a *test-integration-node* script exists in the root
-      `package.json` file."
+      "[boolean string] `'true'` if a *test-integration-node* script exists in
+      the root `package.json` file. `'false'` otherwise."
   has-integration-externals:
     description:
-      "[string] `'true'` if a *test-integration-externals* script exists in the
-      root `package.json` file."
+      "[boolean string] `'true'` if a *test-integration-externals* script exists
+      in the root `package.json` file. `'false'` otherwise."
   has-integration-client:
     description:
-      "[string] `'true'` if a *test-integration-client* script exists in the
-      root `package.json` file."
+      "[boolean string] `'true'` if a *test-integration-client* script exists in
+      the root `package.json` file. `'false'` otherwise."
   has-integration-webpack:
     description:
-      "[string] `'true'` if a *test-integration-webpack* script exists in the
-      root `package.json` file."
+      "[boolean string] `'true'` if a *test-integration-webpack* script exists
+      in the root `package.json` file. `'false'` otherwise."
   debug-string:
     description:
       '[string] A non-empty string if the pipeline is running in debugging mode.
@@ -129,6 +132,10 @@ outputs:
     description:
       '[string] The email used by git during the CD stage. See also: `committer`
       in `pipeline.config.js`.'
+  retry-ceiling-seconds:
+    description:
+      '[number] The maximum number of seconds internal projector tasks allow
+      themselves to run.'
 
 runs:
   using: node12
