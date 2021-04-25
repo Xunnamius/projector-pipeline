@@ -27,7 +27,6 @@ configurations, see [ARCHITECTURE.md][architecture].
 
 - [Usage: GitHub Actions][3]
   - [`audit`][27]
-  - [`build`][28]
   - [`cleanup-npm`][29]
   - [`lint`][30]
   - [`metadata-collect`][31]
@@ -37,7 +36,7 @@ configurations, see [ARCHITECTURE.md][architecture].
   - [`test-integration-externals`][35]
   - [`test-integration-node`][36]
   - [`test-integration-webpack`][37]
-  - [`test-unit`][38]
+  - [`test-unit-then-build`][28]
   - [`verify-npm`][39]
 - [Usage: npm Package][40]
   - [Install][18]
@@ -53,14 +52,6 @@ directly in your workflows:
 **[`audit`][27]**\
 [_Unprivileged_][3]. Audits a project for security vulnerabilities. Currently, all
 auditing is handled by `npm audit`.
-
-Uses `metadata-collect` under the hood.
-
-**[`build`][28]**\
-[_Unprivileged_][3]. Builds a project's distributables via `npm run build` and uploads
-them as an artifact for use by `smart-deploy`. This component action expects coverage
-data to be available in the cache at runtime. Hence, this component action must always
-run _after_ `test-unit`, which produces this data.
 
 Uses `metadata-collect` under the hood.
 
@@ -138,10 +129,10 @@ Uses `metadata-collect` under the hood.
 
 Uses `metadata-collect` under the hood.
 
-**[`test-unit`][38]**\
-[_Unprivileged_][3]. Runs all unit tests via `npm run test-unit` and caches coverage
-data for use by `build`. Hence, this component action must always run _before_ `build`,
-which consumes this data.
+**[`test-unit-then-build`][28]**\
+[_Unprivileged_][3]. Runs all unit tests and collects coverage data via `npm run test-unit`,
+builds distributables via `npm run build`, and uploads the working tree as an artifact
+for use by `smart-deploy`.
 
 Uses `metadata-collect` under the hood.
 
@@ -151,7 +142,7 @@ and related scripts function without errors. This action is best invoked several
 minutes _after_ a release has occurred so that release channels have a chance to
 update their caches.
 
-Uses `metadata-collect` under the hood.
+Uses `metadata-download` under the hood.
 
 ## Usage: GitHub Actions
 
@@ -173,29 +164,6 @@ Example:
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
   action: audit
-```
-
-#### Options
-
-This component action does not recognize any options.
-
-#### Outputs
-
-This component action has no outputs.
-
-### `build`
-
-> _PRIVILEGED ACTION_
-
-This component action uses cached `~/npm` and `./coverage` data if available and
-uploads the working tree as an artifact.
-
-Example:
-
-```YML
-uses: xunnamius/projector-pipeline@v1.0.0
-with:
-  action: build
 ```
 
 #### Options
@@ -349,7 +317,7 @@ See [action.yml][24] for possible outputs of this component action.
 
 This component action uses cached `~/npm` data if available and requires both
 metadata and build artifacts to be available, the former uploaded by
-`metadata-collect` and the latter by `build`.
+`metadata-collect` and the latter by `test-unit-then-build`.
 
 This component action also downloads a [remote `package.json` file][25] during
 operation. This file is used to safely install npm dependencies in privileged
@@ -478,18 +446,19 @@ This component action does not recognize any options.
 
 This component action has no outputs.
 
-### `test-unit`
+### `test-unit-then-build`
 
 > **UNPRIVILEGED ACTION**
 
-This component action uses cached `~/npm` data if available.
+This component action uses cached `~/npm` data if available and uploads the
+working tree as an artifact.
 
 Example:
 
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
-  action: test-unit
+  action: test-unit-then-build
 ```
 
 #### Options
@@ -675,7 +644,7 @@ information.
 [26]:
   https://github.com/xunnamius/projector-pipeline/blob/main/dist/privileged/package.json
 [27]: #audit
-[28]: #build
+[28]: #test-unit-then-build
 [29]: #cleanup-npm
 [30]: #lint
 [31]: #metadata-collect
@@ -685,7 +654,6 @@ information.
 [35]: #test-integration-externals
 [36]: #test-integration-node
 [37]: #test-integration-webpack
-[38]: #test-unit
 [39]: #verify-npm
 [40]: #usage-npm-package
 [43]: https://github.com/Xunnamius/projector-pipeline/blob/main/types/global.ts
