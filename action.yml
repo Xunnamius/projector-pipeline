@@ -15,15 +15,15 @@ inputs:
   action:
     description:
       '[string] The name of the component action to invoke. Can be one of:
-      `audit`, `build`, `cleanup-npm`, `lint`, `metadata-collect`,
-      `metadata-download`, `smart-deploy`, `test-integration-client`,
-      `test-integration-externals`, `test-integration-node`,
-      `test-integration-webpack`, `test-unit`, or `verify-npm`'
+      `audit`, `cleanup-npm`, `lint`, `metadata-collect`, `metadata-download`,
+      `smart-deploy`, `test-integration-client`, `test-integration-externals`,
+      `test-integration-node`, `test-integration-webpack`,
+      `test-unit-then-build`, or `verify-npm`'
     required: true
   options:
     description:
       '[json string] A serialized object containing configuration options for
-      the component action'
+      the invoked component action'
     required: false
 
 outputs:
@@ -86,9 +86,13 @@ outputs:
     description:
       "[string] `'true'` if a *deploy* script exists in the root `package.json`
       file."
-  has-release-config:
+  has-private:
     description:
-      "[string] `'true'` if a `release-config.js` file exists in the repo root`."
+      "[string] `'true'` if the *private* key is `true` in the root
+      `package.json` file."
+  has-bin:
+    description:
+      "[string] `'true'` if a *bin* key exists in the root `package.json` file."
   has-docs:
     description:
       "[string] `'true'` if a *build-docs* script exists in the root
