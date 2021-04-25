@@ -18,7 +18,6 @@ export type ExecaReturnType = ReturnType<typeof import('execa')>;
  */
 export enum ComponentAction {
   Audit = 'audit',
-  Build = 'build',
   CleanupNpm = 'cleanup-npm',
   Lint = 'lint',
   MetadataCollect = 'metadata-collect',
@@ -28,7 +27,7 @@ export enum ComponentAction {
   TestIntegrationExternals = 'test-integration-externals',
   TestIntegrationNode = 'test-integration-node',
   TestIntegrationWebpack = 'test-integration-webpack',
-  TestUnit = 'test-unit',
+  TestUnitThenBuild = 'test-unit-then-build',
   VerifyNpm = 'verify-npm'
 }
 
@@ -86,10 +85,10 @@ export type CloneOptions = {
    * The ref (commit, branch, tag, etc) to checkout or `false` if the working
    * tree should not be checked out after cloning the repo.
    *
-   * This is useful when downloading and unpacking the `build` component
-   * action's resultant artifact and replacing the old working tree safely (e.g.
-   * without running `npm install`) and in its entirely (i.e. ready for further
-   * git commands).
+   * This is useful when downloading and unpacking the `test-unit-then-build`
+   * component action's resultant artifact and replacing the old working tree
+   * safely (e.g. without running `npm install`) and in its entirely (i.e. ready
+   * for further git commands).
    *
    * @default metadata.commitSha
    */
@@ -317,6 +316,7 @@ export type InvokerResult = {
  */
 export type Metadata = {
   packageName: string;
+  packageVersion: string;
   releaseBranchConfig: typeof import('../release.config')['branches'];
   shouldSkipCi: boolean;
   shouldSkipCd: boolean;
@@ -325,8 +325,9 @@ export type Metadata = {
   prNumber: number | null;
   canRelease: boolean;
   canAutomerge: boolean;
+  hasPrivate: boolean;
+  hasBin: boolean;
   hasDeploy: boolean;
-  hasReleaseConfig: boolean;
   hasDocs: boolean;
   hasExternals: boolean;
   hasIntegrationNode: boolean;

@@ -57,13 +57,9 @@ export default async function (
   setupEnv(metadata);
 
   if (options.forceWarnings) {
-    !metadata.hasReleaseConfig &&
-      core.warning(
-        'no release config loaded: missing local semantic-release configuration file'
-      );
-
     !metadata.hasDocs && core.warning('no `build-docs` script defined in package.json');
-
+    !metadata.releaseBranchConfig.length &&
+      core.warning('empty or missing branch array in semantic-release configuration');
     !metadata.canUploadCoverage &&
       core.warning('no code coverage data will be uploaded during this run');
 

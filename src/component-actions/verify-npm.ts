@@ -1,7 +1,7 @@
 import { name as pkgName } from '../../package.json';
 import { ComponentAction } from '../../types/global';
 import { installDependencies } from '../utils/install';
-import metadataCollect from './metadata-collect';
+import metadataDownload from './metadata-download';
 import debugFactory from 'debug';
 import execa from 'execa';
 
@@ -10,8 +10,9 @@ import type { RunnerContext, InvokerOptions } from '../../types/global';
 const debug = debugFactory(`${pkgName}:${ComponentAction.VerifyNpm}`);
 
 export default async function (context: RunnerContext, options: InvokerOptions) {
-  const { shouldSkipCi, shouldSkipCd } = await metadataCollect(context, {
+  const { shouldSkipCi, shouldSkipCd } = await metadataDownload(context, {
     enableFastSkips: true,
+    repository: false,
     ...options
   });
 

@@ -12,6 +12,7 @@ import debugFactory from 'debug';
 import core from '@actions/core';
 import execa from 'execa';
 
+import type { PackageJson } from 'type-fest';
 import type {
   RunnerContext,
   LocalPipelineConfig,
@@ -100,6 +101,7 @@ export default async function (
 
   const metadata: Metadata = {
     packageName: '<unknown>',
+    packageVersion: '<unknown>',
     releaseBranchConfig: [],
     ciSkipRegex: localConfig.ciSkipRegex || globalConfig.ciSkipRegex,
     cdSkipRegex: localConfig.cdSkipRegex || globalConfig.cdSkipRegex,
@@ -116,8 +118,9 @@ export default async function (
     canAutomerge: false, // ? Determined later
     canRetryAutomerge: localConfig.canRetryAutomerge ?? globalConfig.canRetryAutomerge,
     canUploadCoverage: localConfig.canUploadCoverage ?? globalConfig.canUploadCoverage,
+    hasPrivate: false, // ? Determined later
+    hasBin: false, // ? Determined later
     hasDeploy: false, // ? Determined later
-    hasReleaseConfig: false, // ? Determined later
     hasDocs: false, // ? Determined later
     hasExternals: false, // ? Determined later
     hasIntegrationNode: false, // ? Determined later
@@ -182,7 +185,7 @@ export default async function (
     );
   }
 
-  let packageConfig: Partial<typeof import('../../package.json')> = {};
+  let packageConfig: Partial<PackageJson> = {};
   let releaseConfig: Partial<typeof import('../../release.config')> = {};
 
   const packageConfigPath = `${process.cwd()}/package.json`;
@@ -203,10 +206,7 @@ export default async function (
   try {
     accessSync(releaseConfigPath, fs.R_OK);
     releaseConfig = require(releaseConfigPath);
-    metadata.hasReleaseConfig = true;
   } catch (e) {
-    metadata.hasReleaseConfig = false;
-
     if (e instanceof Error && e.message.includes(' access ')) {
       debug(`${releaseConfigPath} is missing: ${e}`);
       core.warning(
@@ -219,8 +219,11 @@ export default async function (
 
   const npmScripts = Object.keys(packageConfig.scripts || {});
 
-  packageConfig.name && (metadata.packageName = packageConfig.name);
+  metadata.packageName = packageConfig.name || metadata.packageName;
+  metadata.packageVersion = packageConfig.version || metadata.packageVersion;
   metadata.releaseBranchConfig = releaseConfig.branches || [];
+  metadata.hasBin = !!packageConfig.bin;
+  metadata.hasPrivate = !!packageConfig.private;
   metadata.hasDeploy = npmScripts.includes('deploy');
   metadata.hasDocs = npmScripts.includes('build-docs');
   metadata.hasExternals = npmScripts.includes('build-externals');

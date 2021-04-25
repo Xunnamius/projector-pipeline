@@ -13,15 +13,9 @@ import execa from 'execa';
 import * as mc from '../src/component-actions/metadata-collect';
 import * as md from '../src/component-actions/metadata-download';
 
-import {
-  cloneRepository,
-  uploadPaths,
-  downloadPaths,
-  cachePaths,
-  uncachePaths
-} from '../src/utils/github';
+import { cloneRepository, uploadPaths, downloadPaths } from '../src/utils/github';
 
-import type { ReadonlyDeep } from 'type-fest';
+import type { PackageJson, ReadonlyDeep } from 'type-fest';
 import type {
   ComponentActionFunction,
   ExecaReturnType,
@@ -91,15 +85,13 @@ const mockedInstallNode = asMockedFunction(installNode);
 const mockedCloneRepository = asMockedFunction(cloneRepository);
 const mockedUploadPaths = asMockedFunction(uploadPaths);
 const mockedDownloadPaths = asMockedFunction(downloadPaths);
-const mockedCachePaths = asMockedFunction(cachePaths);
-const mockedUncachePaths = asMockedFunction(uncachePaths);
 const mockedInstallDependencies = asMockedFunction(installDependencies);
 const mockedInstallPrivilegedDependencies = asMockedFunction(
   installPrivilegedDependencies
 );
 
 const mockMetadata: Partial<Metadata> = {};
-const mockPackageConfig: Partial<typeof import('../package.json')> = {};
+const mockPackageConfig: Partial<PackageJson> = {};
 const mockLocalConfig: Partial<LocalPipelineConfig> = {};
 const mockReleaseConfig: Partial<typeof import('../release.config.js')> = {};
 
@@ -209,69 +201,6 @@ describe(`audit action`, () => {
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();
-    expect(mcSpy).toBeCalledWith(
-      expect.anything(),
-      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
-    );
-  });
-});
-
-describe('build action', () => {
-  it('[build] builds docs only if metadata.hasDocs == true', async () => {
-    expect.hasAssertions();
-
-    await expect(
-      (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
-    ).resolves.toBeUndefined();
-
-    expect(mockedExeca).not.toBeCalledWith(
-      'npm',
-      expect.arrayContaining(['build-docs']),
-      expect.anything()
-    );
-
-    mockMetadata.hasDocs = true;
-
-    await expect(
-      (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
-    ).resolves.toBeUndefined();
-
-    expect(mockedExeca).toBeCalledWith(
-      'npm',
-      expect.arrayContaining(['build-docs']),
-      expect.anything()
-    );
-  });
-
-  it('[build] uncaches coverage data and uploads build artifact', async () => {
-    expect.hasAssertions();
-
-    mockMetadata.commitSha = 'sha';
-    mockMetadata.artifactRetentionDays = 2;
-
-    await withMockedEnv(
-      async () => {
-        await expect(
-          (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
-        ).resolves.toBeUndefined();
-      },
-      { RUNNER_OS: 'fake-os' }
-    );
-
-    expect(mockedUncachePaths).toBeCalledWith(['./coverage'], `coverage-fake-os-sha`);
-    expect(uploadPaths).toBeCalledWith(expect.anything(), `build-fake-os-sha`, 2);
-  });
-
-  it('[build] skipped if `metadata.shouldSkipCi == true`', async () => {
-    expect.hasAssertions();
-
-    mockMetadata.shouldSkipCi = true;
-
-    await expect(
-      (await isolatedActionImport(ComponentAction.Build))(DUMMY_CONTEXT, {})
-    ).resolves.toBeUndefined();
-
-    expect(mockedInstallDependencies).not.toBeCalled();
     expect(mcSpy).toBeCalledWith(
       expect.anything(),
       expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
@@ -668,7 +597,6 @@ describe('metadata-collect action', () => {
 
     mockPackageConfig.name = 'fake-pkg-1';
     mockPackageConfig.scripts = {
-      // @ts-expect-error: package.json inaccuracies
       'build-externals': 'yes'
     };
 
@@ -682,7 +610,6 @@ describe('metadata-collect action', () => {
 
     mockPackageConfig.name = 'fake-pkg-2';
     mockPackageConfig.scripts = {
-      // @ts-expect-error: package.json inaccuracies
       'test-integration-externals': 'yes',
       'build-externals': 'yes'
     };
@@ -695,7 +622,6 @@ describe('metadata-collect action', () => {
 
     mockPackageConfig.name = 'fake-pkg-3';
     mockPackageConfig.scripts = {
-      // @ts-expect-error: package.json inaccuracies
       'test-integration-externals': 'yes'
     };
 
@@ -1242,7 +1168,6 @@ describe('metadata-collect action', () => {
 
     mockPackageConfig.name = 'my-pkg';
     mockPackageConfig.scripts = {
-      // @ts-expect-error: forced type widening here
       deploy: 'yes',
       'build-docs': 'yes',
       'build-externals': 'yes',
@@ -1282,6 +1207,7 @@ describe('metadata-collect action', () => {
       (Promise.resolve({ stdout: 'commit msg' }) as unknown) as ExecaReturnType
     );
 
+    mockReleaseConfig.branches = ['b1', 'b2', 'b3'];
     mockedAccessSync.mockImplementation(
       (name) => name == FAKE_RELEASE_CONFIG_PATH && toss(new Error('dummy access error'))
     );
@@ -1291,7 +1217,7 @@ describe('metadata-collect action', () => {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
-      hasReleaseConfig: false
+      releaseBranchConfig: []
     });
 
     mockedAccessSync.mockReset();
@@ -1301,7 +1227,7 @@ describe('metadata-collect action', () => {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
-      hasReleaseConfig: true
+      releaseBranchConfig: ['b1', 'b2', 'b3']
     });
   });
 
@@ -1681,6 +1607,7 @@ describe('metadata-download action', () => {
   it('[metadata-download] reissues warnings if options.forceWarnings == true and debugString metadata given', async () => {
     expect.hasAssertions();
 
+    mockMetadata.releaseBranchConfig = [];
     mockMetadata.debugString = 'debug-string';
     mockMetadata.hasDocs = false;
 
@@ -1708,6 +1635,8 @@ describe('metadata-download action', () => {
 
   it('[metadata-download] reissues warnings if options.forceWarnings == true and process.env.DEBUG given', async () => {
     expect.hasAssertions();
+
+    mockMetadata.releaseBranchConfig = [];
 
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
@@ -1752,17 +1681,19 @@ describe('metadata-download action', () => {
     mockMetadata.debugString = 'good-debug-string';
     mockMetadata.hasDeploy = true;
     mockMetadata.hasDocs = false;
+    mockMetadata.hasPrivate = true;
+    mockMetadata.hasBin = true;
     mockMetadata.hasExternals = false;
     mockMetadata.hasIntegrationClient = false;
     mockMetadata.hasIntegrationExternals = false;
     mockMetadata.hasIntegrationNode = false;
     mockMetadata.hasIntegrationWebpack = false;
-    mockMetadata.hasReleaseConfig = true;
     mockMetadata.nodeCurrentVersion = 'x.y.z';
     mockMetadata.nodeTestVersions = ['w', 'x', 'y'];
     mockMetadata.npmAuditFailLevel = 'good-fail';
     mockMetadata.npmIgnoreDistTags = ['good'];
     mockMetadata.packageName = 'good-package-name';
+    mockMetadata.packageVersion = 'a.a.a';
     mockMetadata.prNumber = 333;
     mockMetadata.releaseActorWhitelist = ['x'];
     mockMetadata.releaseBranchConfig = [];
@@ -1967,39 +1898,61 @@ describe('test-integration-webpack action', () => {
   });
 });
 
-describe('test-unit action', () => {
-  it('[test-unit] uploads coverage data only if metadata.canUploadCoverage == true', async () => {
+describe('test-unit-then-build action', () => {
+  it('[test-unit-then-build] builds docs only if metadata.hasDocs == true', async () => {
     expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).not.toBeCalledWith(
+      'npm',
+      expect.arrayContaining(['build-docs']),
+      expect.anything()
+    );
+
+    mockMetadata.hasDocs = true;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledWith(
+      'npm',
+      expect.arrayContaining(['build-docs']),
+      expect.anything()
+    );
+  });
+
+  it('[test-unit-then-build] uploads build artifact', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.commitSha = 'sha';
+    mockMetadata.artifactRetentionDays = 2;
 
     await withMockedEnv(
       async () => {
-        mockMetadata.commitSha = 'sha';
-        mockMetadata.canUploadCoverage = false;
-
         await expect(
-          (await isolatedActionImport(ComponentAction.TestUnit))(DUMMY_CONTEXT, {})
-        ).resolves.toBeUndefined();
-
-        mockMetadata.canUploadCoverage = true;
-
-        await expect(
-          (await isolatedActionImport(ComponentAction.TestUnit))(DUMMY_CONTEXT, {})
+          (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(
+            DUMMY_CONTEXT,
+            {}
+          )
         ).resolves.toBeUndefined();
       },
       { RUNNER_OS: 'fake-os' }
     );
 
-    expect(mockedCachePaths).toBeCalledWith(['./coverage'], 'coverage-fake-os-sha');
-    expect(mockedInstallDependencies).toBeCalledTimes(2);
+    expect(uploadPaths).toBeCalledWith(expect.anything(), `build-fake-os-sha`, 2);
   });
 
-  it('[test-unit] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-unit-then-build] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.TestUnit))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
     expect(mockedInstallDependencies).not.toBeCalled();
@@ -2011,7 +1964,9 @@ describe('test-unit action', () => {
 });
 
 describe('verify-npm action', () => {
-  test.todo('[verify-npm] (todo)');
+  it.skip('[verify-npm] (todo)', async () => {
+    expect.hasAssertions();
+  });
 
   it('[verify-npm] skipped if `metadata.shouldSkipCi == true`', async () => {
     expect.hasAssertions();
@@ -2023,13 +1978,16 @@ describe('verify-npm action', () => {
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();
-    expect(mcSpy).toBeCalledWith(
+    expect(mdSpy).toBeCalledWith(
       expect.anything(),
-      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+      expect.objectContaining({
+        enableFastSkips: true,
+        repository: false
+      } as InvokerOptions)
     );
   });
 
-  it('[verify-npm] skipped if `metadata.shouldSkipCd == true`', async () => {
+  it.skip('[verify-npm] skipped if `metadata.shouldSkipCd == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCd = true;
@@ -2041,7 +1999,10 @@ describe('verify-npm action', () => {
     expect(mockedExeca).not.toBeCalled();
     expect(mcSpy).toBeCalledWith(
       expect.anything(),
-      expect.objectContaining({ enableFastSkips: true } as InvokerOptions)
+      expect.objectContaining({
+        enableFastSkips: true,
+        repository: false
+      } as InvokerOptions)
     );
   });
 });
