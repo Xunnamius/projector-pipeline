@@ -180,6 +180,14 @@ export type LocalPipelineConfig = {
    */
   npmAuditFailLevel: string;
   /**
+   * The maximum amount of time in seconds any "retry"-type operation can
+   * continue retrying. This includes all exponential backoff steps.
+   *
+   * @warning A 5 minute limit is hardcoded into pipeline workflows, so values
+   * above ~250 might lead to undesirable VM hard stops.
+   */
+  retryCeilingSeconds: number;
+  /**
    * The number of days to keep artifacts around. Must be an integer between 1
    * and 90.
    */

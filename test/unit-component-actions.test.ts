@@ -1964,7 +1964,11 @@ describe('test-unit-then-build action', () => {
 });
 
 describe('verify-npm action', () => {
-  it.skip('[verify-npm] (todo)', async () => {
+  it.skip('[verify-npm] retries npm/npx test according to exponential backoff', async () => {
+    expect.hasAssertions();
+  });
+
+  it.skip('[verify-npm] retries npm/npx test according to exponential backoff', async () => {
     expect.hasAssertions();
   });
 
@@ -1987,7 +1991,7 @@ describe('verify-npm action', () => {
     );
   });
 
-  it.skip('[verify-npm] skipped if `metadata.shouldSkipCd == true`', async () => {
+  it('[verify-npm] skipped if `metadata.shouldSkipCd == true`', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCd = true;
@@ -1997,7 +2001,7 @@ describe('verify-npm action', () => {
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();
-    expect(mcSpy).toBeCalledWith(
+    expect(mdSpy).toBeCalledWith(
       expect.anything(),
       expect.objectContaining({
         enableFastSkips: true,

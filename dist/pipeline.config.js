@@ -66,6 +66,12 @@ module.exports = {
   // * Attempt to upload project coverage data to codecov if `true`.
   canUploadCoverage: true,
 
+  // * The maximum amount of time in seconds any "retry"-type operation can
+  // * continue retrying. This includes all exponential backoff steps.
+  // ! A 5 minute limit is hardcoded into pipeline workflows, so values above
+  // ! ~250 might lead to undesirable VM hard stops.
+  retryCeilingSeconds: 180,
+
   // * How many days GitHub should keep uploaded artifacts around.
   // ! 90 days is GitHub's default, but this should be dramatically lowered for
   // ! private repos where artifact storage costs $$$.

@@ -113,7 +113,7 @@ export default async function (
       localConfig.webpackTestVersions || globalConfig.webpackTestVersions,
     commitSha: context.sha,
     currentBranch,
-    prNumber: context.payload.pull_request?.number || null,
+    prNumber: context.payload.pull_request?.number ?? null,
     canRelease: false, // ? Determined later
     canAutomerge: false, // ? Determined later
     canRetryAutomerge: localConfig.canRetryAutomerge ?? globalConfig.canRetryAutomerge,
@@ -135,6 +135,8 @@ export default async function (
     npmAuditFailLevel: localConfig.npmAuditFailLevel || globalConfig.npmAuditFailLevel,
     artifactRetentionDays:
       localConfig.artifactRetentionDays ?? globalConfig.artifactRetentionDays,
+    retryCeilingSeconds:
+      localConfig.retryCeilingSeconds ?? globalConfig.retryCeilingSeconds,
     releaseRepoOwnerWhitelist: globalConfig.releaseRepoOwnerWhitelist.map((el) =>
       el.toLowerCase()
     ),
