@@ -1,3 +1,5 @@
+import type { Promisable } from 'type-fest';
+
 /**
  * Removes 'readonly' attributes from a type's properties.
  */
@@ -9,6 +11,86 @@ export type CreateMutable<T> = {
  * Utility type for testing Execa
  */
 export type ExecaReturnType = ReturnType<typeof import('execa')>;
+
+export type AttemptOptions = {
+  /**
+   * The maximum number of attempts before an error is thrown. `0` means no
+   * limit.
+   *
+   * @default 10
+   */
+  maxAttempts: number;
+  /**
+   * The maximum total runtime in milliseconds before an error is thrown. `0`
+   * means no limit. Counting starts when `attempt()` is first called.
+   *
+   * Note that this will _not_ limit the runtime of `fn` itself in any way!
+   *
+   * @default 0
+   */
+  maxTotalElapsedMs: number;
+  /**
+   * The maximum amount of time in milliseconds between attempts. `0` means no
+   * limit.
+   *
+   * Note that, if `maxJitterMs >= 0`, `maxDelayMs + maxJitterMs` becomes the
+   * _actual_ maximum possible delay interval.
+   *
+   * @default 0
+   */
+  maxDelayMs: number;
+  /**
+   * The minimum amount of time in milliseconds between attempts.
+   *
+   * @default 0
+   */
+  minDelayMs: number;
+  /**
+   * Every delay will be increased by `Math.random() * maxJitterMs`
+   * milliseconds, ensuring smoother concurrent invocations.
+   *
+   * @default 0
+   */
+  maxJitterMs: number;
+  /**
+   * This function is called whenever the attempted function rejects/throws. It
+   * receives the most recent error, the current attempt number (starting at 1),
+   * the next delay period, and the total elapsed time since the `attempt()` was
+   * first called.
+   *
+   * This function should return `true` if another attempt should be considered,
+   * or `false` to abort execution, which will immediately throw an error. You
+   * can also throw your own error instead.
+   *
+   * @default () => true
+   */
+  onFailure: (
+    lastError: unknown,
+    attemptNumber: number,
+    nextDelayMs: number,
+    totalElapsedMs: number
+  ) => boolean;
+  /**
+   * If `true`, an error will be thrown if `maxAttempts` or `maxTotalElapsedMs`
+   * are exceeded. If `false`, no errors will be thrown and `attempt()` will
+   * resolve (probably not what you want).
+   *
+   * If set to a function, it is called instead of throwing an error. It
+   * receives the most recent error, the current (max) attempt number (starting
+   * at 1), the total elapsed time since `attempt()` function was first called,
+   * and the reason this function was called.
+   *
+   * @default true
+   */
+  onLimitReached:
+    | boolean
+    | ((
+        lastError: unknown,
+        attemptNumber: number,
+        reason: 'attempts' | 'delay',
+        totalElapsedMs: number
+      ) => Promisable<void>);
+};
 
 /**
  * List (enum) of available component actions.

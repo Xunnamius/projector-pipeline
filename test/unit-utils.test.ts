@@ -15,6 +15,7 @@ import os from 'os';
 import * as env from '../src/utils/env';
 import * as github from '../src/utils/github';
 import * as install from '../src/utils/install';
+import * as retry from '../src/utils/retry';
 
 import type { ExecaReturnType, Metadata } from '../types/global';
 import type { HashElementNode } from 'folder-hash';
@@ -56,9 +57,6 @@ let runtimeDebugNamespaces: string;
 
 const mockedResolve = asMockedFunction(resolve);
 const mockedExeca = asMockedFunction(execa);
-// TODO: retire this line when .changelogrc.js is fixed
-mockedExeca.sync = jest.requireActual('execa').sync;
-
 const mockedReadFileSync = asMockedFunction(readFileSync);
 const mockedWriteFileSync = asMockedFunction(writeFileSync);
 const mockedAccessSync = asMockedFunction(accessSync);
@@ -899,6 +897,58 @@ describe('install', () => {
 
       expect(mockedExeca).toBeCalledTimes(2);
       expect(mockedWriteFileSync).toBeCalledTimes(1);
+    });
+  });
+});
+
+describe('retry', () => {
+  describe('::retry', () => {
+    it('achieves exponential backoff with zero configuration', async () => {
+      expect.hasAssertions();
+    });
+
+    it('limits max attempts with zero configuration', async () => {
+      expect.hasAssertions();
+    });
+
+    it('throws when onFailure returns false', async () => {
+      expect.hasAssertions();
+    });
+
+    it('throws when an error is thrown within onFailure', async () => {
+      expect.hasAssertions();
+    });
+
+    it('throws when an error is thrown within onLimitReached', async () => {
+      expect.hasAssertions();
+    });
+
+    it('respects onLimitReached boolean values', async () => {
+      expect.hasAssertions();
+    });
+
+    it('calls custom onLimitReached when maxTotalElapsedMs exceeded', async () => {
+      expect.hasAssertions();
+    });
+
+    it('calls custom onLimitReached when maxAttempts exceeded', async () => {
+      expect.hasAssertions();
+    });
+
+    it('calls custom onFailure when the target function fails', async () => {
+      expect.hasAssertions();
+    });
+
+    it('adds jitter only if maxJitterMs != 0', async () => {
+      expect.hasAssertions();
+    });
+
+    it('respects minDelayMs and maxDelayMs', async () => {
+      expect.hasAssertions();
+    });
+
+    it('supports 0 value maximums properly', async () => {
+      expect.hasAssertions();
     });
   });
 });
