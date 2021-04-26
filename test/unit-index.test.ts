@@ -2,16 +2,10 @@ import { ComponentAction, invokeComponentAction } from '../src/index';
 import { asMockedFunction } from './setup';
 import { promises as fs, constants as mode } from 'fs';
 import mockAction from '../src/component-actions/audit';
-import execa from 'execa';
 
 import type { RunnerContext } from '../types/global';
 
-jest.mock('execa');
 jest.mock('../src/component-actions/audit');
-
-const mockedExeca = asMockedFunction(execa);
-// TODO: retire this line when .changelogrc.js is fixed
-mockedExeca.sync = jest.requireActual('execa').sync;
 
 const mockedAction = asMockedFunction(mockAction);
 const mockedActionName = ComponentAction.Audit;

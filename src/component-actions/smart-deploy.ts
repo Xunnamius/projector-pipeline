@@ -26,6 +26,7 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
 
   if (!options.codecovToken) debug('no codecov token provided (OK)');
 
+  // TODO: still do semantic-release but do not npm publish if private == true
   // TODO: do not checkout if only automerge
   // TODO: replace all metadata calls with destructuring style project-wide
   const { shouldSkipCi, shouldSkipCd, commitSha } = await metadataDownload(context, {

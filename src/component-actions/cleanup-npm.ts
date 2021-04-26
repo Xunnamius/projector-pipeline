@@ -30,11 +30,11 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
 
   if (!shouldSkipCi) {
     await execa('git', ['remote', 'prune', 'origin'], { stdio: 'inherit' });
-    const { stdout: branchesString } = await execa(
-      'git',
-      ['for-each-ref', `--format='%(refname:lstrip=3)'`, 'refs/remotes/origin'],
-      { stdio: 'inherit' }
-    );
+    const { stdout: branchesString } = await execa('git', [
+      'for-each-ref',
+      `--format='%(refname:lstrip=3)'`,
+      'refs/remotes/origin'
+    ]);
 
     debug(`branchesString: ${branchesString}`);
 

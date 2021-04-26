@@ -74,9 +74,6 @@ jest.mock('../src/utils/github');
 jest.mock('../src/utils/install');
 
 const mockedExeca = asMockedFunction(execa);
-// TODO: retire this line when .changelogrc.js is fixed
-mockedExeca.sync = jest.requireActual('execa').sync;
-
 const mockedFetchGet = asMockedFunction(fetch.get);
 const mockedCoreWarning = asMockedFunction(core.warning);
 const mockedWriteFileSync = asMockedFunction(writeFileSync);
@@ -95,7 +92,7 @@ const mockPackageConfig: Partial<PackageJson> = {};
 const mockLocalConfig: Partial<LocalPipelineConfig> = {};
 const mockReleaseConfig: Partial<typeof import('../release.config.js')> = {};
 
-// ! Don't forget to add a doMock for each of these in the `beforeEach` as well
+// ! Don't forget to add a doMock for each of these in the beforeEach as well
 
 jest.doMock(FAKE_PACKAGE_CONFIG_PATH, () => mockPackageConfig, {
   virtual: true
@@ -156,7 +153,7 @@ afterEach(() => {
   );
 });
 
-describe(`audit action`, () => {
+describe('audit action', () => {
   it('[audit] succeeds if npm audit is successful', async () => {
     expect.hasAssertions();
 
@@ -191,7 +188,7 @@ describe(`audit action`, () => {
     expect(mockedExeca).toBeCalled();
   });
 
-  it('[audit] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[audit] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -455,7 +452,7 @@ describe('cleanup-npm action', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('[cleanup-npm] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[cleanup-npm] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -482,7 +479,7 @@ describe('lint action', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('[lint] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[lint] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1737,7 +1734,7 @@ describe('metadata-download action', () => {
 describe('smart-deploy action', () => {
   test.todo('[smart-deploy] (todo)');
 
-  it('[smart-deploy] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[smart-deploy] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1758,7 +1755,7 @@ describe('smart-deploy action', () => {
     );
   });
 
-  it('[smart-deploy] skipped if `metadata.shouldSkipCd == true`', async () => {
+  it('[smart-deploy] skipped if metadata.shouldSkipCd == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCd = true;
@@ -1791,7 +1788,7 @@ describe('test-integration-client action', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('[test-integration-client] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-integration-client] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1822,7 +1819,7 @@ describe('test-integration-externals action', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('[test-integration-externals] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-integration-externals] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1850,7 +1847,7 @@ describe('test-integration-node action', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('[test-integration-node] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-integration-node] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1878,7 +1875,7 @@ describe('test-integration-webpack action', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('[test-integration-webpack] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-integration-webpack] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1946,7 +1943,7 @@ describe('test-unit-then-build action', () => {
     expect(uploadPaths).toBeCalledWith(expect.anything(), `build-fake-os-sha`, 2);
   });
 
-  it('[test-unit-then-build] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[test-unit-then-build] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1964,15 +1961,47 @@ describe('test-unit-then-build action', () => {
 });
 
 describe('verify-npm action', () => {
-  it.skip('[verify-npm] retries npm/npx test according to exponential backoff', async () => {
+  it('[verify-npm] performs install tests wrt package metadata', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.hasBin = false;
+    mockMetadata.hasPrivate = false;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+
+    mockMetadata.hasBin = false;
+    mockMetadata.hasPrivate = true;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+
+    mockMetadata.hasBin = true;
+    mockMetadata.hasPrivate = false;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+
+    mockMetadata.hasBin = true;
+    mockMetadata.hasPrivate = true;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+    ).resolves.toBeUndefined();
+  });
+
+  it('[verify-npm] retries install tests according to exponential backoff', async () => {
     expect.hasAssertions();
   });
 
-  it.skip('[verify-npm] retries npm/npx test according to exponential backoff', async () => {
+  it('[verify-npm] retries install tests wrt metadata.retryCeilingSeconds', async () => {
     expect.hasAssertions();
   });
 
-  it('[verify-npm] skipped if `metadata.shouldSkipCi == true`', async () => {
+  it('[verify-npm] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
@@ -1991,7 +2020,7 @@ describe('verify-npm action', () => {
     );
   });
 
-  it('[verify-npm] skipped if `metadata.shouldSkipCd == true`', async () => {
+  it('[verify-npm] skipped if metadata.shouldSkipCd == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCd = true;
