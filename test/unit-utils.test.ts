@@ -4,6 +4,7 @@ import { PRIVILEGED_DEPS_URI } from '../src/index';
 import { hashElement as hashFiles } from 'folder-hash';
 import { readFileSync, accessSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
+import { toss } from 'toss-expression';
 import cache from '@actions/cache';
 import artifact from '@actions/artifact';
 import core from '@actions/core';
@@ -19,6 +20,9 @@ import * as retry from '../src/utils/retry';
 
 import type { ExecaReturnType, Metadata } from '../types/global';
 import type { HashElementNode } from 'folder-hash';
+import { ComponentActionError } from 'src/error';
+
+jest.useFakeTimers('modern');
 
 jest.mock('fs', () => {
   const fs = jest.createMockFromModule<typeof import('fs')>('fs');
@@ -903,52 +907,328 @@ describe('install', () => {
 
 describe('retry', () => {
   describe('::retry', () => {
-    it('achieves exponential backoff with zero configuration', async () => {
+    const mockFn = jest.fn();
+
+    it('runs to completion if fn resolves; no exponential backoff (zero config)', async () => {
       expect.hasAssertions();
+      await expect(retry.attempt(mockFn)).resolves.toBeUndefined();
+      expect(mockFn).toBeCalledTimes(1);
     });
 
-    it('limits max attempts with zero configuration', async () => {
+    it('achieves exponential backoff if fn throws (zero config)', async () => {
       expect.hasAssertions();
+
+      Array.from({ length: retry.DEFAULT_MAX_RETRIES - 1 }).forEach((_) => {
+        mockFn.mockImplementationOnce(() => toss(new Error('tossed badness')));
+      });
+
+      const attempt = retry.attempt(mockFn);
+      expect(mockFn).toBeCalledTimes(1);
+
+      // ? Why await undefined + await runTimers? Because await always
+      // ? interrupts whenever it appears and we need two interrupts. This is
+      // ? only needed so that jest.runOnlyPendingTimers() can be run given
+      // ? the mocked event loop. If toss didn't throw, we'd need 3 interrupts
+
+      expect(retry.DEFAULT_MAX_RETRIES).toBe(10);
+
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await jest.runOnlyPendingTimers();
+
+      await expect(attempt).resolves.toBeUndefined();
+      expect(mockFn).toBeCalledTimes(retry.DEFAULT_MAX_RETRIES);
+    }, 2147483647);
+
+    it('achieves exponential backoff if fn rejects (zero config)', async () => {
+      expect.hasAssertions();
+
+      Array.from({ length: retry.DEFAULT_MAX_RETRIES - 1 }).forEach((_) => {
+        mockFn.mockImplementationOnce(() => Promise.reject('tossed badness'));
+      });
+
+      const attempt = retry.attempt(mockFn);
+      expect(mockFn).toBeCalledTimes(1);
+
+      expect(retry.DEFAULT_MAX_RETRIES).toBe(10);
+
+      await undefined; // ? 2 interrupts instead of 1 since we're not throwing
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await undefined;
+      await jest.runOnlyPendingTimers();
+      await undefined;
+      await undefined;
+      await jest.runOnlyPendingTimers();
+
+      await expect(attempt).resolves.toBeUndefined();
+      expect(mockFn).toBeCalledTimes(retry.DEFAULT_MAX_RETRIES);
+    }, 2147483647);
+
+    it('maxAttempts limits max attempts', async () => {
+      expect.hasAssertions();
+
+      mockFn.mockImplementationOnce(() => toss(new Error('badness')));
+
+      const mockHandler = jest.fn();
+      const attempt = retry.attempt(mockFn, {
+        maxAttempts: 1,
+        onLimitReached: mockHandler
+      });
+
+      expect(mockFn).toBeCalledTimes(1);
+
+      await undefined;
+      await jest.runOnlyPendingTimers();
+
+      await expect(attempt).resolves.toBeUndefined();
+      expect(mockFn).toBeCalledTimes(1);
+      expect(mockHandler).toBeCalledTimes(1);
     });
 
     it('throws when onFailure returns false', async () => {
       expect.hasAssertions();
+
+      mockFn.mockImplementation(() => toss(new Error('badness')));
+
+      const attempt = retry.attempt(mockFn, {
+        onFailure: () => false
+      });
+
+      await expect(attempt).rejects.toMatchObject({
+        message: expect.stringContaining('aborted')
+      });
     });
 
     it('throws when an error is thrown within onFailure', async () => {
       expect.hasAssertions();
+
+      mockFn.mockImplementation(() => toss(new Error('badness')));
+
+      const attempt = retry.attempt(mockFn, {
+        onFailure: () => toss(new Error('my special error'))
+      });
+
+      await expect(attempt).rejects.toMatchObject({
+        message: expect.stringContaining('my special error')
+      });
     });
 
     it('throws when an error is thrown within onLimitReached', async () => {
       expect.hasAssertions();
+
+      mockFn.mockImplementation(() => toss(new Error('badness')));
+
+      const attempt = retry.attempt(mockFn, {
+        maxAttempts: 1,
+        onLimitReached: () => toss(new Error('super bad'))
+      });
+
+      await expect(attempt).rejects.toMatchObject({
+        message: expect.stringContaining('super bad')
+      });
     });
 
     it('respects onLimitReached boolean values', async () => {
       expect.hasAssertions();
+
+      mockFn.mockImplementation(() => toss(new Error('badness')));
+
+      const attempt1 = retry.attempt(mockFn, {
+        maxAttempts: 1,
+        onLimitReached: true
+      });
+
+      await expect(attempt1).rejects.toMatchObject({
+        message: expect.stringContaining('maximum attempts exceeded')
+      });
+
+      const attempt3 = retry.attempt(mockFn, {
+        maxAttempts: 1,
+        onLimitReached: false
+      });
+
+      await expect(attempt3).resolves.toBeUndefined();
+
+      jest
+        .spyOn(Date, 'now')
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(2000)
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(2000);
+
+      const attempt2 = retry.attempt(mockFn, {
+        maxTotalElapsedMs: 1,
+        onLimitReached: true
+      });
+
+      await expect(attempt2).rejects.toMatchObject({
+        message: expect.stringContaining('maximum elapsed runtime exceeded')
+      });
+
+      const attempt4 = retry.attempt(mockFn, {
+        maxTotalElapsedMs: 1,
+        onLimitReached: false
+      });
+
+      await expect(attempt4).resolves.toBeUndefined();
     });
 
-    it('calls custom onLimitReached when maxTotalElapsedMs exceeded', async () => {
-      expect.hasAssertions();
+    it('calls custom onLimitReached with expected parameters when maxTotalElapsedMs exceeded', async () => {
+      expect.assertions(5);
+
+      const lastErr = new Error('badness');
+      mockFn.mockImplementation(() => toss(lastErr));
+
+      jest.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(2000);
+
+      await expect(
+        retry.attempt(mockFn, {
+          maxTotalElapsedMs: 1,
+          onLimitReached: (lastError, attemptNumber, reason, totalElapsedMs) => {
+            expect(lastError).toBe(lastErr);
+            expect(attemptNumber).toBe(1);
+            expect(reason).toBe('delay');
+            expect(totalElapsedMs).toBe(1000);
+          }
+        })
+      ).resolves.toBeUndefined();
     });
 
-    it('calls custom onLimitReached when maxAttempts exceeded', async () => {
-      expect.hasAssertions();
+    it('calls custom onLimitReached with expected parameters when maxAttempts exceeded', async () => {
+      expect.assertions(5);
+
+      const lastErr = new Error('badness');
+      mockFn.mockImplementation(() => toss(lastErr));
+
+      jest.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(2000);
+
+      await expect(
+        retry.attempt(mockFn, {
+          maxAttempts: 1,
+          onLimitReached: (lastError, attemptNumber, reason, totalElapsedMs) => {
+            expect(lastError).toBe(lastErr);
+            expect(attemptNumber).toBe(1);
+            expect(reason).toBe('attempts');
+            expect(totalElapsedMs).toBe(1000);
+          }
+        })
+      ).resolves.toBeUndefined();
     });
 
-    it('calls custom onFailure when the target function fails', async () => {
-      expect.hasAssertions();
+    it('calls custom onFailure with expected parameters when the target function fails', async () => {
+      expect.assertions(5);
+
+      const lastErr = new Error('badness');
+      mockFn.mockImplementation(() => toss(lastErr));
+
+      jest.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(2000);
+
+      const attempt = retry.attempt(mockFn, {
+        minDelayMs: 1000,
+        onFailure: (lastError, attemptNumber, nextDelayMs, totalElapsedMs) => {
+          expect(lastError).toBe(lastErr);
+          expect(attemptNumber).toBe(1);
+          expect(nextDelayMs).toBe(1000);
+          expect(totalElapsedMs).toBe(1000);
+          return false;
+        }
+      });
+
+      await expect(attempt).rejects.not.toBeUndefined();
     });
 
     it('adds jitter only if maxJitterMs != 0', async () => {
-      expect.hasAssertions();
+      expect.assertions(4);
+
+      mockFn.mockImplementation(() => toss(new Error('badness')));
+
+      await expect(
+        retry.attempt(mockFn, {
+          minDelayMs: 1000,
+          onFailure: (_, __, nextDelayMs, ___) => {
+            expect(nextDelayMs).toBe(1000);
+            return false;
+          }
+        })
+      ).rejects.not.toBeUndefined();
+
+      await expect(
+        retry.attempt(mockFn, {
+          minDelayMs: 1000,
+          maxJitterMs: 5000,
+          onFailure: (_, __, nextDelayMs, ___) => {
+            expect(nextDelayMs).toBeGreaterThan(1000);
+            return false;
+          }
+        })
+      ).rejects.not.toBeUndefined();
     });
 
     it('respects minDelayMs and maxDelayMs', async () => {
-      expect.hasAssertions();
+      expect.assertions(4);
+
+      mockFn.mockImplementation(() => toss(new Error('badness')));
+
+      await expect(
+        retry.attempt(mockFn, {
+          minDelayMs: 10000,
+          onFailure: (_, __, nextDelayMs, ___) => {
+            expect(nextDelayMs).toBe(10000);
+            return false;
+          }
+        })
+      ).rejects.not.toBeUndefined();
+
+      await expect(
+        retry.attempt(mockFn, {
+          minDelayMs: 10000,
+          maxDelayMs: 1,
+          onFailure: (_, __, nextDelayMs, ___) => {
+            expect(nextDelayMs).toBe(1);
+            return false;
+          }
+        })
+      ).rejects.not.toBeUndefined();
     });
 
-    it('supports 0 value maximums properly', async () => {
+    it('resolves to be the result of fn regardless of return type', async () => {
       expect.hasAssertions();
+      await expect(retry.attempt(async () => 5)).resolves.toBe(5);
     });
   });
 });
