@@ -915,14 +915,21 @@ describe('retry', () => {
       expect(mockFn).toBeCalledTimes(1);
     });
 
-    it('achieves exponential backoff if fn throws (zero config)', async () => {
+    it('achieves exponential backoff if fn throws', async () => {
       expect.hasAssertions();
 
       Array.from({ length: retry.DEFAULT_MAX_RETRIES - 1 }).forEach((_) => {
         mockFn.mockImplementationOnce(() => toss(new Error('tossed badness')));
       });
 
-      const attempt = retry.attempt(mockFn);
+      const attempt = retry.attempt(mockFn, {
+        onFailure: (_, attemptNumber, nextDelayMs) => {
+          // ? 100ms is the default minDelayMs
+          expect(nextDelayMs).toBe(2 ** (attemptNumber - 1) * 100);
+          return true;
+        }
+      });
+
       expect(mockFn).toBeCalledTimes(1);
 
       // ? Why await undefined + await runTimers? Because await always
@@ -963,8 +970,8 @@ describe('retry', () => {
       });
 
       const attempt = retry.attempt(mockFn);
-      expect(mockFn).toBeCalledTimes(1);
 
+      expect(mockFn).toBeCalledTimes(1);
       expect(retry.DEFAULT_MAX_RETRIES).toBe(10);
 
       await undefined; // ? 2 interrupts instead of 1 since we're not throwing
@@ -1224,6 +1231,23 @@ describe('retry', () => {
           }
         })
       ).rejects.not.toBeUndefined();
+    });
+
+    it('maxAttempts == 0 == Infinity', async () => {
+      expect.hasAssertions();
+
+      let fail = 1;
+      mockFn.mockImplementation(() => toss(new Error('badness')));
+
+      await expect(
+        retry.attempt(mockFn, {
+          minDelayMs: 10000,
+          onLimitReached: () => ((fail = 2), void 0),
+          onFailure: () => ((fail = 0), false)
+        })
+      ).rejects.not.toBeUndefined();
+
+      expect(fail).toBe(0);
     });
 
     it('resolves to be the result of fn regardless of return type', async () => {

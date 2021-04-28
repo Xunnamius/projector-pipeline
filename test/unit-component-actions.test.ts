@@ -49,6 +49,8 @@ const FAKE_PACKAGE_CONFIG_PATH = `${FAKE_ROOT}/package.json`;
 const FAKE_PIPELINE_CONFIG_PATH = `${FAKE_ROOT}/.github/pipeline.config.js`;
 const FAKE_RELEASE_CONFIG_PATH = `${FAKE_ROOT}/release.config.js`;
 
+jest.useFakeTimers('modern');
+
 jest.mock('execa');
 
 jest.mock('fs', () => {
@@ -1971,12 +1973,18 @@ describe('verify-npm action', () => {
       (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
+    expect(mockedExeca).toBeCalledTimes(2);
+    mockedExeca.mockReset();
+
     mockMetadata.hasBin = false;
     mockMetadata.hasPrivate = true;
 
     await expect(
       (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledTimes(0);
+    mockedExeca.mockReset();
 
     mockMetadata.hasBin = true;
     mockMetadata.hasPrivate = false;
@@ -1985,20 +1993,115 @@ describe('verify-npm action', () => {
       (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
+    expect(mockedExeca).toBeCalledTimes(3);
+    mockedExeca.mockReset();
+
     mockMetadata.hasBin = true;
     mockMetadata.hasPrivate = true;
 
     await expect(
       (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledTimes(0);
+    mockedExeca.mockReset();
   });
 
-  it('[verify-npm] retries install tests according to exponential backoff', async () => {
+  it('[verify-npm] retries package installation upon failure', async () => {
     expect.hasAssertions();
+
+    mockedExeca
+      .mockImplementationOnce(() => toss(new Error('fake error')))
+      .mockImplementationOnce(() => (true as unknown) as ExecaReturnType);
+
+    const action = (await isolatedActionImport(ComponentAction.VerifyNpm))(
+      DUMMY_CONTEXT,
+      {}
+    );
+
+    await undefined;
+    await undefined;
+    await jest.runOnlyPendingTimers();
+    await expect(action).resolves.toBeUndefined();
+  }, 2147483647);
+
+  it('[verify-npm] throws if retrying too many times', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.retryCeilingSeconds = 180;
+
+    mockedExeca
+      .mockImplementationOnce(() => toss(new Error('fake error')))
+      .mockImplementationOnce(() => toss(new Error('fake error')))
+      .mockImplementationOnce(() => toss(new Error('fake error')))
+      .mockImplementationOnce(() => toss(new Error('fake error')))
+      .mockImplementationOnce(() => toss(new Error('fake error')))
+      .mockImplementationOnce(() => (true as unknown) as ExecaReturnType);
+
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValueOnce(100)
+      .mockReturnValueOnce(200)
+      .mockReturnValueOnce(300)
+      .mockReturnValueOnce(400)
+      .mockReturnValueOnce(500)
+      .mockReturnValueOnce(99999999);
+
+    const action = (await isolatedActionImport(ComponentAction.VerifyNpm))(
+      DUMMY_CONTEXT,
+      {}
+    );
+
+    await undefined;
+    await undefined;
+    await jest.runOnlyPendingTimers();
+    await undefined;
+    await undefined;
+    await jest.runOnlyPendingTimers();
+    await undefined;
+    await undefined;
+    await jest.runOnlyPendingTimers();
+    await undefined;
+    await undefined;
+    await jest.runOnlyPendingTimers();
+    await undefined;
+    await undefined;
+    await jest.runOnlyPendingTimers();
+
+    await expect(action).rejects.toMatchObject({
+      message: expect.stringContaining('unable to install')
+    });
+  }, 2147483647);
+
+  it('[verify-npm] throws when generic test fails', async () => {
+    expect.hasAssertions();
+
+    mockedExeca
+      .mockImplementationOnce(() => (undefined as unknown) as ExecaReturnType)
+      .mockImplementationOnce(() => toss(new Error('badlessness')));
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('generic execution test failed')
+    });
   });
 
-  it('[verify-npm] retries install tests wrt metadata.retryCeilingSeconds', async () => {
+  it('[verify-npm] throws when bin test fails', async () => {
     expect.hasAssertions();
+
+    mockMetadata.hasBin = true;
+
+    mockedExeca
+      .mockImplementationOnce(() => (undefined as unknown) as ExecaReturnType)
+      .mockImplementationOnce(() => (undefined as unknown) as ExecaReturnType)
+      .mockImplementationOnce(() => toss(new Error('badlessness')));
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('npx cli test failed')
+    });
   });
 
   it('[verify-npm] skipped if metadata.shouldSkipCi == true', async () => {

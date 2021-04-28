@@ -2,7 +2,6 @@ import { name as pkgName } from '../../package.json';
 import { toss } from 'toss-expression';
 import debugFactory from 'debug';
 
-import type { Promisable } from 'type-fest';
 import type { AttemptOptions } from '../../types/global';
 
 const debug = debugFactory(`${pkgName}:retry`);
@@ -13,6 +12,7 @@ export { retry as attempt };
 
 // TODO: XXX: turn this into exponential-retry package
 // TODO: XXX: also offer a `.sync` version and `attempt` as an alias of `retry`
+// TODO: XXX: and give examples of unit testing code that uses retry
 /**
  * Dead-simple automatic function retrying using exponential backoff.
  * Promise-based, fully-typed, completely isomorphic, and with an easy interface
@@ -26,13 +26,20 @@ export { retry as attempt };
  * execution is successful, the result of `fn` is available when this function
  * resolves.
  */
-export async function retry(
-  fn: () => Promisable<unknown>,
+export async function retry<T = ReturnType<Parameters<typeof retry>[0]>>(
+  fn: () => T,
   options: Partial<AttemptOptions> = {}
 ) {
   type OnLimitReachedFn = Exclude<AttemptOptions['onLimitReached'], boolean>;
 
-  const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_RETRIES;
+  // ? With zero config, we don't want this thing retrying forever
+  const maxAttempts =
+    options.maxAttempts === undefined
+      ? DEFAULT_MAX_RETRIES
+      : options.maxAttempts === 0
+      ? Infinity
+      : options.maxAttempts;
+
   const maxTotalElapsedMs = options.maxTotalElapsedMs || Infinity;
   const minDelayMs = options.minDelayMs || DEFAULT_MIN_DELAY;
   const maxDelayMs = options.maxDelayMs || Infinity;
