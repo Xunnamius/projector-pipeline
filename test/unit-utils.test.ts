@@ -20,7 +20,6 @@ import * as retry from '../src/utils/retry';
 
 import type { ExecaReturnType, Metadata } from '../types/global';
 import type { HashElementNode } from 'folder-hash';
-import { ComponentActionError } from 'src/error';
 
 jest.useFakeTimers('modern');
 
