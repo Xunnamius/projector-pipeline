@@ -682,7 +682,7 @@ describe('install', () => {
 
       expect(install.installPeerDeps).toBeCalledTimes(1);
       expect(mockedAccessSync).toBeCalledTimes(1);
-      expect(mockedExeca).toBeCalledTimes(2);
+      expect(mockedExeca).toBeCalledTimes(3);
 
       expect(mockedExeca).toBeCalledWith(
         'npm',

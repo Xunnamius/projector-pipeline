@@ -1,14 +1,17 @@
 import { ComponentAction, invokeComponentAction } from '../src/index';
-import { asMockedFunction } from './setup';
 import { promises as fs, constants as mode } from 'fs';
-import mockAction from '../src/component-actions/audit';
 
 import type { RunnerContext } from '../types/global';
 
-jest.mock('../src/component-actions/audit');
+const mockedAction = jest.fn();
+const mockedActionName = ('fake-component-action' as unknown) as ComponentAction;
 
-const mockedAction = asMockedFunction(mockAction);
-const mockedActionName = ComponentAction.Audit;
+jest.doMock(
+  // ? Blame Node's module resolution algo lol
+  `/repos/projector-pipeline/src/../src/component-actions/${mockedActionName}`,
+  () => mockedAction,
+  { virtual: true }
+);
 
 afterEach(() => {
   jest.clearAllMocks();
@@ -29,8 +32,9 @@ it('all ComponentActions refer to files under `src/component-actions`', async ()
 it('capable of invoking component actions', async () => {
   expect.hasAssertions();
 
-  // @ts-expect-error: we don't care that the dummy return value isn't valid
-  mockedAction.mockReturnValueOnce(Promise.resolve({ faker: true }));
+  mockedAction.mockReturnValueOnce(
+    (Promise.resolve({ faker: true }) as unknown) as ReturnType<typeof mockedAction>
+  );
 
   await expect(
     invokeComponentAction(mockedActionName, {} as RunnerContext)
@@ -59,17 +63,17 @@ it('rejected promise handled correctly', async () => {
   mockedAction.mockReturnValueOnce(Promise.reject('bad thing'));
 
   await expect(
-    invokeComponentAction(ComponentAction.Audit, {} as RunnerContext)
+    invokeComponentAction(mockedActionName, {} as RunnerContext)
   ).rejects.toMatchObject({
-    message: `${ComponentAction.Audit} component action invocation failed: bad thing`
+    message: `${mockedActionName} component action invocation failed: bad thing`
   });
 
   mockedAction.mockReturnValueOnce(Promise.reject(new Error('bad error')));
 
   await expect(
-    invokeComponentAction(ComponentAction.Audit, {} as RunnerContext)
+    invokeComponentAction(mockedActionName, {} as RunnerContext)
   ).rejects.toMatchObject({
-    message: `${ComponentAction.Audit} component action invocation failed: bad error`
+    message: `${mockedActionName} component action invocation failed: bad error`
   });
 
   expect(mockedAction).toBeCalledTimes(2);
@@ -81,9 +85,9 @@ it('empty rejected promise handled correctly', async () => {
   mockedAction.mockReturnValueOnce(Promise.reject());
 
   await expect(
-    invokeComponentAction(ComponentAction.Audit, {} as RunnerContext)
+    invokeComponentAction(mockedActionName, {} as RunnerContext)
   ).rejects.toMatchObject({
-    message: `${ComponentAction.Audit} component action invocation failed`
+    message: `${mockedActionName} component action invocation failed`
   });
 
   expect(mockedAction).toBeCalledTimes(1);
@@ -93,12 +97,12 @@ it('returns new options object', async () => {
   expect.hasAssertions();
 
   const options = {};
-  // @ts-expect-error: we don't care that the dummy return value isn't valid
-  mockedAction.mockReturnValueOnce(Promise.resolve({ faker: true }));
+  mockedAction.mockReturnValueOnce(
+    (Promise.resolve({ faker: true }) as unknown) as ReturnType<typeof mockedAction>
+  );
 
   await expect(
-    (await invokeComponentAction(ComponentAction.Audit, {} as RunnerContext, options))
-      .options
+    (await invokeComponentAction(mockedActionName, {} as RunnerContext, options)).options
   ).not.toBe(options);
 
   expect(mockedAction).toBeCalledTimes(1);
