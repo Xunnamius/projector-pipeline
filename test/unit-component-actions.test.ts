@@ -1962,15 +1962,15 @@ describe('test-unit-then-build action', () => {
   });
 });
 
-describe('verify-npm action', () => {
-  it('[verify-npm] performs install tests wrt package metadata', async () => {
+describe('verify-release action', () => {
+  it('[verify-release] performs install tests wrt package metadata', async () => {
     expect.hasAssertions();
 
     mockMetadata.hasBin = false;
     mockMetadata.hasPrivate = false;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledTimes(2);
@@ -1980,7 +1980,7 @@ describe('verify-npm action', () => {
     mockMetadata.hasPrivate = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledTimes(0);
@@ -1990,7 +1990,7 @@ describe('verify-npm action', () => {
     mockMetadata.hasPrivate = false;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledTimes(3);
@@ -2000,21 +2000,21 @@ describe('verify-npm action', () => {
     mockMetadata.hasPrivate = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledTimes(0);
     mockedExeca.mockReset();
   });
 
-  it('[verify-npm] retries package installation upon failure', async () => {
+  it('[verify-release] retries package installation upon failure', async () => {
     expect.hasAssertions();
 
     mockedExeca
       .mockImplementationOnce(() => toss(new Error('fake error')))
       .mockImplementationOnce(() => (true as unknown) as ExecaReturnType);
 
-    const action = (await isolatedActionImport(ComponentAction.VerifyNpm))(
+    const action = (await isolatedActionImport(ComponentAction.VerifyRelease))(
       DUMMY_CONTEXT,
       {}
     );
@@ -2025,7 +2025,7 @@ describe('verify-npm action', () => {
     await expect(action).resolves.toBeUndefined();
   }, 2147483647);
 
-  it('[verify-npm] throws if retrying too many times', async () => {
+  it('[verify-release] throws if retrying too many times', async () => {
     expect.hasAssertions();
 
     mockMetadata.retryCeilingSeconds = 180;
@@ -2047,7 +2047,7 @@ describe('verify-npm action', () => {
       .mockReturnValueOnce(500)
       .mockReturnValueOnce(99999999);
 
-    const action = (await isolatedActionImport(ComponentAction.VerifyNpm))(
+    const action = (await isolatedActionImport(ComponentAction.VerifyRelease))(
       DUMMY_CONTEXT,
       {}
     );
@@ -2073,7 +2073,7 @@ describe('verify-npm action', () => {
     });
   }, 2147483647);
 
-  it('[verify-npm] throws when generic test fails', async () => {
+  it('[verify-release] throws when generic test fails', async () => {
     expect.hasAssertions();
 
     mockedExeca
@@ -2081,13 +2081,13 @@ describe('verify-npm action', () => {
       .mockImplementationOnce(() => toss(new Error('badlessness')));
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
     ).rejects.toMatchObject({
       message: expect.stringContaining('generic execution test failed')
     });
   });
 
-  it('[verify-npm] throws when bin test fails', async () => {
+  it('[verify-release] throws when bin test fails', async () => {
     expect.hasAssertions();
 
     mockMetadata.hasBin = true;
@@ -2098,19 +2098,19 @@ describe('verify-npm action', () => {
       .mockImplementationOnce(() => toss(new Error('badlessness')));
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
     ).rejects.toMatchObject({
       message: expect.stringContaining('npx cli test failed')
     });
   });
 
-  it('[verify-npm] skipped if metadata.shouldSkipCi == true', async () => {
+  it('[verify-release] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();
@@ -2123,13 +2123,13 @@ describe('verify-npm action', () => {
     );
   });
 
-  it('[verify-npm] skipped if metadata.shouldSkipCd == true', async () => {
+  it('[verify-release] skipped if metadata.shouldSkipCd == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCd = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();

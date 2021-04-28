@@ -37,7 +37,7 @@ configurations, see [ARCHITECTURE.md][architecture].
   - [`test-integration-node`][36]
   - [`test-integration-webpack`][37]
   - [`test-unit-then-build`][28]
-  - [`verify-npm`][39]
+  - [`verify-release`][39]
 - [Usage: npm Package][40]
   - [Install][18]
   - [Example][19]
@@ -136,7 +136,7 @@ for use by `smart-deploy`.
 
 Uses `metadata-collect` under the hood.
 
-**[`verify-npm`][39]**\
+**[`verify-release`][39]**\
 [_Unprivileged_][3]. Performs post-release package verification, e.g. ensure `npm install`
 and related scripts function without errors. This action is best invoked several
 minutes _after_ a release has occurred so that release channels have a chance to
@@ -234,7 +234,8 @@ This component action has no outputs.
 > **UNPRIVILEGED ACTION**
 
 This component action uses cached `~/npm` data if available and uploads the
-collected metadata as an artifact.
+collected metadata as an artifact with key
+`metadata-${{ runner.os }}-${{ github.sha }}`.
 
 Example:
 
@@ -315,9 +316,11 @@ See [action.yml][24] for possible outputs of this component action.
 
 > _PRIVILEGED ACTION_
 
-This component action uses cached `~/npm` data if available and requires both
-metadata and build artifacts to be available, the former uploaded by
-`metadata-collect` and the latter by `test-unit-then-build`.
+This component action requires both metadata and build artifacts to be
+available, the former uploaded by `metadata-collect` with artifact key
+`build-${{ runner.os }}-${{ github.sha }}` and the latter by
+`test-unit-then-build` with artifact key
+`metadata-${{ runner.os }}-${{ github.sha }}`.
 
 This component action also downloads a [remote `package.json` file][25] during
 operation. This file is used to safely install npm dependencies in privileged
@@ -451,7 +454,7 @@ This component action has no outputs.
 > **UNPRIVILEGED ACTION**
 
 This component action uses cached `~/npm` data if available and uploads the
-working tree as an artifact.
+working tree as an artifact with key `build-${{ runner.os }}-${{ github.sha }}`.
 
 Example:
 
@@ -469,7 +472,7 @@ This component action does not recognize any options.
 
 This component action has no outputs.
 
-### `verify-npm`
+### `verify-release`
 
 > **UNPRIVILEGED ACTION**
 
@@ -480,7 +483,7 @@ Example:
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
-  action: verify-npm
+  action: verify-release
 ```
 
 #### Options
@@ -654,6 +657,6 @@ information.
 [35]: #test-integration-externals
 [36]: #test-integration-node
 [37]: #test-integration-webpack
-[39]: #verify-npm
+[39]: #verify-release
 [40]: #usage-npm-package
 [43]: https://github.com/Xunnamius/projector-pipeline/blob/main/types/global.ts

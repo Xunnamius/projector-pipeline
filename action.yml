@@ -18,7 +18,7 @@ inputs:
       `audit`, `cleanup-npm`, `lint`, `metadata-collect`, `metadata-download`,
       `smart-deploy`, `test-integration-client`, `test-integration-externals`,
       `test-integration-node`, `test-integration-webpack`,
-      `test-unit-then-build`, or `verify-npm`'
+      `test-unit-then-build`, or `verify-release`'
     required: true
   options:
     description:

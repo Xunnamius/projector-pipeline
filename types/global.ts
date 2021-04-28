@@ -109,7 +109,7 @@ export enum ComponentAction {
   TestIntegrationNode = 'test-integration-node',
   TestIntegrationWebpack = 'test-integration-webpack',
   TestUnitThenBuild = 'test-unit-then-build',
-  VerifyNpm = 'verify-npm'
+  VerifyRelease = 'verify-release'
 }
 
 /**

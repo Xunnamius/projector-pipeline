@@ -9,7 +9,7 @@ import core from '@actions/core';
 
 import type { RunnerContext, InvokerOptions } from '../../types/global';
 
-const debug = debugFactory(`${pkgName}:${ComponentAction.VerifyNpm}`);
+const debug = debugFactory(`${pkgName}:${ComponentAction.VerifyRelease}`);
 
 export default async function (context: RunnerContext, options: InvokerOptions) {
   const {
@@ -73,5 +73,5 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
         throw new ComponentActionError(`npx cli test failed: ${e}`);
       }
     }
-  } else debug(`skipped component action "${ComponentAction.VerifyNpm}"`);
+  } else debug(`skipped component action "${ComponentAction.VerifyRelease}"`);
 }

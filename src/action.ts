@@ -4,7 +4,7 @@ import { context } from '@actions/github';
 import debugFactory from 'debug';
 import execa from 'execa';
 
-const debug = debugFactory(`${pkgName}:${ComponentAction.VerifyNpm}`);
+const debug = debugFactory(`${pkgName}:${ComponentAction.VerifyRelease}`);
 
 void context, execa, debug;
 
