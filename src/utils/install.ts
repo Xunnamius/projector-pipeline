@@ -81,7 +81,7 @@ export async function installPeerDeps() {
 
 /**
  * Install privileged dependencies using `npm install` and the global (remote)
- * `package.json file`; peer dependencies are installed manually if using
+ * `package.json` file; peer dependencies are installed manually if using
  * `npm@<7`.
  */
 export async function installPrivilegedDependencies() {
@@ -104,6 +104,9 @@ export async function installPrivilegedDependencies() {
   debug('installing privileged dependencies');
   await execa('npm', ['install'], { stdio: 'inherit' });
   await installPeerDeps();
+
+  debug('removing spent package.json');
+  await execa('rm', ['package.json'], { stdio: 'inherit' });
 }
 
 /**
