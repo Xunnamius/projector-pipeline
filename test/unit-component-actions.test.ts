@@ -155,8 +155,8 @@ afterEach(() => {
   );
 });
 
-describe('audit action', () => {
-  it('[audit] succeeds if npm audit is successful', async () => {
+describe('audit-runtime action', () => {
+  it('[audit-runtime] succeeds if npm audit is successful', async () => {
     expect.hasAssertions();
 
     mockMetadata.npmAuditFailLevel = 'test-audit-level';
@@ -165,7 +165,7 @@ describe('audit action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.Audit))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.AuditRuntime))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
     expect(mockedExeca).toBeCalledWith(
       'npm',
@@ -174,7 +174,7 @@ describe('audit action', () => {
     );
   });
 
-  it('[audit] fails if npm audit is unsuccessful', async () => {
+  it('[audit-runtime] fails if npm audit is unsuccessful', async () => {
     expect.hasAssertions();
 
     mockedExeca.mockReturnValue(
@@ -182,7 +182,7 @@ describe('audit action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.Audit))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.AuditRuntime))(DUMMY_CONTEXT, {})
     ).rejects.toMatchObject({
       message: expect.stringContaining('bad')
     });
@@ -190,13 +190,13 @@ describe('audit action', () => {
     expect(mockedExeca).toBeCalled();
   });
 
-  it('[audit] skipped if metadata.shouldSkipCi == true', async () => {
+  it('[audit-runtime] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
 
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.Audit))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.AuditRuntime))(DUMMY_CONTEXT, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();

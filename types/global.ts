@@ -98,7 +98,7 @@ export type AttemptOptions = {
  * `src/component-actions/${enum-value}.ts`.
  */
 export enum ComponentAction {
-  Audit = 'audit',
+  AuditRuntime = 'audit-runtime',
   CleanupNpm = 'cleanup-npm',
   Lint = 'lint',
   MetadataCollect = 'metadata-collect',

@@ -26,7 +26,7 @@ configurations, see [ARCHITECTURE.md][architecture].
 ---
 
 - [Usage: GitHub Actions][3]
-  - [`audit`][27]
+  - [`audit-runtime`][27]
   - [`cleanup-npm`][29]
   - [`lint`][30]
   - [`metadata-collect`][31]
@@ -49,7 +49,7 @@ configurations, see [ARCHITECTURE.md][architecture].
 The following component actions can be imported as libraries via Node or invoked
 directly in your workflows:
 
-**[`audit`][27]**\
+**[`audit-runtime`][27]**\
 [_Unprivileged_][3]. Audits a project for security vulnerabilities. Currently, all
 auditing is handled by `npm audit`.
 
@@ -154,7 +154,7 @@ and GitHub write tokens (e.g. `workflow_run`), or _unprivileged_, where they
 is a major security vulnerability to invoke unprivileged component actions on
 [untrusted code outside properly sandboxed workflows][22].**
 
-### `audit`
+### `audit-runtime`
 
 > **UNPRIVILEGED ACTION**
 
@@ -163,7 +163,7 @@ Example:
 ```YML
 uses: xunnamius/projector-pipeline@v1.0.0
 with:
-  action: audit
+  action: audit-runtime
 ```
 
 #### Options
@@ -646,7 +646,7 @@ information.
 [25]: dist/privileged/package.json
 [26]:
   https://github.com/xunnamius/projector-pipeline/blob/main/dist/privileged/package.json
-[27]: #audit
+[27]: #audit-runtime
 [28]: #test-unit-then-build
 [29]: #cleanup-npm
 [30]: #lint

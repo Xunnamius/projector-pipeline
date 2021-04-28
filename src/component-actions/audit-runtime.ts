@@ -6,7 +6,7 @@ import execa from 'execa';
 
 import type { RunnerContext, InvokerOptions } from '../../types/global';
 
-const debug = debugFactory(`${pkgName}:${ComponentAction.Audit}`);
+const debug = debugFactory(`${pkgName}:${ComponentAction.AuditRuntime}`);
 
 export default async function (context: RunnerContext, options: InvokerOptions) {
   const { shouldSkipCi, npmAuditFailLevel } = await metadataCollect(context, {
@@ -18,5 +18,5 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
     await execa('npm', ['audit', `--audit-level=${npmAuditFailLevel}`], {
       stdio: 'inherit'
     });
-  } else debug(`skipped component action "${ComponentAction.Audit}"`);
+  } else debug(`skipped component action "${ComponentAction.AuditRuntime}"`);
 }
