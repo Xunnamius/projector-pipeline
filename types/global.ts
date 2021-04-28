@@ -1,13 +1,6 @@
 import type { Promisable } from 'type-fest';
 
 /**
- * Removes 'readonly' attributes from a type's properties.
- */
-export type CreateMutable<T> = {
-  -readonly [P in keyof T]: T[P];
-};
-
-/**
  * Utility type for testing Execa
  */
 export type ExecaReturnType = ReturnType<typeof import('execa')>;
@@ -15,48 +8,54 @@ export type ExecaReturnType = ReturnType<typeof import('execa')>;
 export type AttemptOptions = {
   /**
    * The maximum number of attempts before an error is thrown. `0` means no
-   * limit.
+   * limit. Must be a non-negative number or behavior is undefined.
    *
    * @default 10
    */
   maxAttempts: number;
   /**
    * The maximum total runtime in milliseconds before an error is thrown. `0`
-   * means no limit. Counting starts when `attempt()` is first called.
+   * means no limit. Counting starts when `attempt()` is first called. Must be a
+   * non-negative number or behavior is undefined.
    *
-   * Note that this will _not_ limit the runtime of `fn` itself in any way!
+   * ⚠️ Note that this will _not_ limit the runtime of `fn` itself in any way!
+   * The total elapsed time limit is only assessed _after_ `fn` runs, however
+   * long that takes!
    *
    * @default 0
    */
   maxTotalElapsedMs: number;
   /**
    * The maximum amount of time in milliseconds between attempts. `0` means no
-   * limit.
+   * limit. Must be a non-negative number (greater than `minDelayMs` if
+   * non-zero) or behavior is undefined.
    *
-   * Note that, if `maxJitterMs >= 0`, `maxDelayMs + maxJitterMs` becomes the
+   * ⚠️ Note that, if `maxJitterMs >= 0`, `maxDelayMs + maxJitterMs` becomes the
    * _actual_ maximum possible delay interval.
    *
    * @default 0
    */
   maxDelayMs: number;
   /**
-   * The minimum amount of time in milliseconds between attempts.
+   * The minimum amount of time in milliseconds between attempts. Must be a
+   * positive number or behavior is undefined.
    *
-   * @default 0
+   * @default 1
    */
   minDelayMs: number;
   /**
    * Every delay will be increased by `Math.random() * maxJitterMs`
-   * milliseconds, ensuring smoother concurrent invocations.
+   * milliseconds, ensuring smoother concurrent invocations. Must be a
+   * non-negative number or behavior is undefined.
    *
    * @default 0
    */
   maxJitterMs: number;
   /**
-   * This function is called whenever the attempted function rejects/throws. It
-   * receives the most recent error, the current attempt number (starting at 1),
-   * the next delay period, and the total elapsed time since the `attempt()` was
-   * first called.
+   * This function is called whenever the attempted function rejects/throws
+   * _and no limits have been exceeded_. It receives the most recent error, the
+   * current attempt number (starting at 1), the next delay period, and the
+   * total elapsed time since the `attempt()` was first called.
    *
    * This function should return `true` if another attempt should be considered,
    * or `false` to abort execution, which will immediately throw an error. You
@@ -69,10 +68,10 @@ export type AttemptOptions = {
     attemptNumber: number,
     nextDelayMs: number,
     totalElapsedMs: number
-  ) => boolean;
+  ) => Promisable<boolean>;
   /**
    * If `true`, an error will be thrown if `maxAttempts` or `maxTotalElapsedMs`
-   * are exceeded. If `false`, no errors will be thrown and `attempt()` will
+   * are exceeded. ⚠️ If `false`, no errors will be thrown and `attempt()` will
    * resolve (probably not what you want).
    *
    * If set to a function, it is called instead of throwing an error. It
@@ -212,7 +211,7 @@ export type LocalPipelineConfig = {
   /**
    * The node version to install during metadata download/collection.
    *
-   * @warning This node version will also be used to run unit and integration
+   * ⚠️ This node version will also be used to run unit and integration
    * tests as part of a Actions test matrix that includes both
    * `nodeCurrentVersion` and `nodeTestVersions`.
    */
@@ -220,7 +219,7 @@ export type LocalPipelineConfig = {
   /**
    * The versions of node to run unit and integration tests against.
    *
-   * @warning This already includes `nodeCurrentVersion` and specifying it here
+   * ⚠️ This already includes `nodeCurrentVersion` and specifying it here
    * would be redundant (and potentially cause tests to be run twice!)
    */
   nodeTestVersions: string[];
@@ -265,7 +264,7 @@ export type LocalPipelineConfig = {
    * The maximum amount of time in seconds any "retry"-type operation can
    * continue retrying. This includes all exponential backoff steps.
    *
-   * @warning A 5 minute limit is hardcoded into pipeline workflows, so values
+   * ⚠️ A 5 minute limit is hardcoded into pipeline workflows, so values
    * above ~250 might lead to undesirable VM hard stops.
    */
   retryCeilingSeconds: number;
@@ -322,7 +321,7 @@ export type InvokerOptions = {
    * always reported by the `metadata-collect` component action already, usually
    * making reissuing the warnings redundant.
    *
-   * This setting also causes `metadata-collect` to issue a warning when the
+   * ⚠️ This setting also causes `metadata-collect` to issue a warning when the
    * pipeline is in debug. Normally this output is suppressed.
    *
    * @default false
@@ -334,7 +333,7 @@ export type InvokerOptions = {
    * metadata immediately upon determining `shouldSkipCi == true`. This saves
    * time by allowing a partially initialized metadata object to be returned.
    *
-   * Note: uninitialized values are `false` or `null` as their type allows.
+   * ⚠️ Note: uninitialized values are `false` or `null` as their type allows.
    * Metadata members will never be undefined.
    *
    * @default true
