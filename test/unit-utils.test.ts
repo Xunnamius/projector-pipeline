@@ -21,8 +21,6 @@ import * as retry from '../src/utils/retry';
 import type { ExecaReturnType, Metadata } from '../types/global';
 import type { HashElementNode } from 'folder-hash';
 
-jest.useFakeTimers('modern');
-
 jest.mock('fs', () => {
   const fs = jest.createMockFromModule<typeof import('fs')>('fs');
   fs.promises = jest.createMockFromModule<typeof import('fs/promises')>('fs/promises');
@@ -930,33 +928,7 @@ describe('retry', () => {
       });
 
       expect(mockFn).toBeCalledTimes(1);
-
-      // ? Why await undefined + await runTimers? Because await always
-      // ? interrupts whenever it appears and we need two interrupts. This is
-      // ? only needed so that jest.runOnlyPendingTimers() can be run given
-      // ? the mocked event loop. If toss didn't throw, we'd need 3 interrupts
-
       expect(retry.DEFAULT_MAX_RETRIES).toBe(10);
-
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await jest.runOnlyPendingTimers();
-
       await expect(attempt).resolves.toBeUndefined();
       expect(mockFn).toBeCalledTimes(retry.DEFAULT_MAX_RETRIES);
     }, 2147483647);
@@ -972,35 +944,6 @@ describe('retry', () => {
 
       expect(mockFn).toBeCalledTimes(1);
       expect(retry.DEFAULT_MAX_RETRIES).toBe(10);
-
-      await undefined; // ? 2 interrupts instead of 1 since we're not throwing
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await undefined;
-      await jest.runOnlyPendingTimers();
-      await undefined;
-      await undefined;
-      await jest.runOnlyPendingTimers();
-
       await expect(attempt).resolves.toBeUndefined();
       expect(mockFn).toBeCalledTimes(retry.DEFAULT_MAX_RETRIES);
     }, 2147483647);
@@ -1017,10 +960,6 @@ describe('retry', () => {
       });
 
       expect(mockFn).toBeCalledTimes(1);
-
-      await undefined;
-      await jest.runOnlyPendingTimers();
-
       await expect(attempt).resolves.toBeUndefined();
       expect(mockFn).toBeCalledTimes(1);
       expect(mockHandler).toBeCalledTimes(1);

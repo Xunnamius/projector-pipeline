@@ -25,7 +25,7 @@ export async function installDependencies() {
   const cacheHit = await uncachePaths(
     ['~/.npm'],
     `npm-${os}-${(await hashFiles('**/package-lock.json')).hash}`,
-    ['npm-${os}-']
+    [`npm-${os}-`]
   );
 
   debug(`npm installer cache hit: ${cacheHit}`);
