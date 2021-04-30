@@ -337,7 +337,7 @@ with:
     {
       "github-token": "your-github-pat-here",
       "npm-token": "your-npm-token-here",
-      "gpg-priv-key": "your-private-key-here",
+      "gpg-private-key-armored": "your-private-key-here",
       "gpg-passphrase": "your-passphrase-here"
     }
 ```
@@ -347,13 +347,19 @@ with:
 This action accepts an `options` JSON string input with the following properties
 and constraints:
 
-| Name             | Type       | Default | Description                                                                                                            |
-| :--------------- | :--------- | :------ | :--------------------------------------------------------------------------------------------------------------------- |
-| `github-token`   | _`string`_ | (none)  | **[REQUIRED]** A GitHub access token with read-write access to the appropriate repository or repositories.             |
-| `npm-token`      | _`string`_ | (none)  | **[REQUIRED]** An npm access token with read-write access to the appropriate package(s).                               |
-| `codecov-token`  | _`string`_ | (none)  | A Codecov token corresponding to the target repository. Not necessary and should be omitted for public repositories.   |
-| `gpg-priv-key`   | _`string`_ | (none)  | **[REQUIRED]** The GPG private key used for git signing purposes. This key must correspond to [`committer.email`][23]. |
-| `gpg-passphrase` | _`string`_ | (none)  | **[REQUIRED]** The passphrase that unlocks `gpg-priv-key`.                                                             |
+| Name             | Type       | Default | Description                                                                                                                                                                                                                                                                                                                     |
+| :--------------- | :--------- | :------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `github-token`   | _`string`_ | (none)  | **[REQUIRED]** A GitHub access token with read-write access to the appropriate repository or repositories.                                                                                                                                                                                                                      |
+| `npm-token`      | _`string`_ | (none)  | **[REQUIRED]** An npm access token with read-write access to the appropriate package(s).                                                                                                                                                                                                                                        |
+| `codecov-token`  | _`string`_ | (none)  | A Codecov token corresponding to the target repository. Not necessary and should be omitted for public repositories.                                                                                                                                                                                                            |
+| `gpg-pk-armored` | _`string`_ | (none)  | **[REQUIRED]** The [armored GPG private key](https://www.techopedia.com/definition/23150/ascii-armor) used for [git signing purposes](https://docs.github.com/en/github/authenticating-to-github/about-commit-signature-verification#about-commit-signature-verification). This key must correspond to [`committer.email`][23]. |
+| `gpg-passphrase` | _`string`_ | (none)  | **[REQUIRED]** The passphrase that unlocks `gpg-pk-armored`.                                                                                                                                                                                                                                                                    |
+
+This component action always passes
+`{ repository: { ...customRepoOptions, checkoutRef: false }}` to
+[`metadata-download`][32]. This means, regardless of any custom repository
+settings (`customRepoOptions` above) provided, `checkoutRef` will always be
+`false`.
 
 See also: [configuring the pipeline][23].
 
