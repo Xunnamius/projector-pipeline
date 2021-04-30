@@ -1,5 +1,4 @@
 import { name as pkgName } from '../../package.json';
-import { toss } from 'toss-expression';
 import debugFactory from 'debug';
 
 import type { AttemptOptions } from '../../types/global';
@@ -14,9 +13,12 @@ export { retry as attempt };
 // TODO: XXX: also offer a `.sync` version and `attempt` as an alias of `retry`
 // TODO: XXX: and give examples of unit testing code that uses retry
 /**
- * Dead-simple automatic function retrying using exponential backoff.
- * Promise-based, fully-typed, completely isomorphic, and with an easy interface
- * so you can get back to what you were doing.
+ * Super simple automatic function retrying using exponential backoff.
+ * Promise-based, fully-typed, completely isomorphic, and with a data-rich
+ * interface for simple and complex use cases. When a testing environment is
+ * detected (NODE_ENV == 'test'), all timers are replaced by resolved promises.
+ * That is: there's no need to muck around with fake/mocked timers in your unit
+ * tests.
  */
 
 /**
@@ -74,6 +76,9 @@ export async function retry<T = ReturnType<Parameters<typeof retry>[0]>>(
     onLimitReached
   });
 
+  const useFakeTimer = process.env.NODE_ENV == 'test';
+  useFakeTimer && debug('test environment detected. Using fake timers');
+
   for (let attempts = 0; ++attempts; ) {
     debug(`attempt ${attempts}/${maxAttempts}`);
     try {
@@ -103,12 +108,15 @@ export async function retry<T = ReturnType<Parameters<typeof retry>[0]>>(
         debug(`might attempt again in ${nextDelayMs}ms (jitter: ${jitterMs})`);
 
         // eslint-disable-next-line no-await-in-loop
-        (await onFailure(e, attempts, nextDelayMs, totalElapsedMs)) ||
-          toss(new Error('attempted execution was aborted'));
+        if (!(await onFailure(e, attempts, nextDelayMs, totalElapsedMs)))
+          throw new Error('attempted execution was aborted');
 
         debug('sleeping before next attempt...');
         // eslint-disable-next-line no-await-in-loop
-        await new Promise((resolve) => setTimeout(resolve, nextDelayMs));
+        await new Promise<void>((resolve) =>
+          /* istanbul ignore next */
+          useFakeTimer ? resolve() : setTimeout(resolve, nextDelayMs)
+        );
       }
     }
   }
