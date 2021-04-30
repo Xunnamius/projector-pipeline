@@ -1,19 +1,19 @@
 import { ComponentAction, UPLOADED_METADATA_PATH } from '../src/index';
 import { asMockedFunction, isolatedImport, withMockedEnv } from './setup';
-import { writeFileSync, accessSync } from 'fs';
+import { writeFileSync, accessSync, existsSync } from 'fs';
 import { fetch } from 'isomorphic-json-fetch';
+import { cloneRepository, uploadPaths, downloadPaths } from '../src/utils/github';
+import { toss } from 'toss-expression';
+import * as core from '@actions/core';
+import * as mc from '../src/component-actions/metadata-collect';
+import * as md from '../src/component-actions/metadata-download';
+import execa from 'execa';
+
 import {
   installNode,
   installDependencies,
   installPrivilegedDependencies
 } from '../src/utils/install';
-import { toss } from 'toss-expression';
-import * as core from '@actions/core';
-import execa from 'execa';
-import * as mc from '../src/component-actions/metadata-collect';
-import * as md from '../src/component-actions/metadata-download';
-
-import { cloneRepository, uploadPaths, downloadPaths } from '../src/utils/github';
 
 import type { PackageJson, ReadonlyDeep } from 'type-fest';
 import type {
@@ -25,7 +25,7 @@ import type {
   InvokerOptions
 } from '../types/global';
 
-const DUMMY_CONTEXT: ReadonlyDeep<RunnerContext> = {
+const DummyContext: ReadonlyDeep<RunnerContext> = {
   action: 'action-name',
   actor: 'actor-x',
   eventName: 'event-name',
@@ -40,16 +40,18 @@ const DUMMY_CONTEXT: ReadonlyDeep<RunnerContext> = {
   workflow: 'workflow-name'
 };
 
-const DUMMY_GLOBAL_CONFIG = jest.requireActual(
+const DummyGlobalConfig = jest.requireActual(
   '../dist/pipeline.config.js'
 ) as typeof import('../dist/pipeline.config');
+
+const DummyGpgPrivKey = jest
+  .requireActual('fs')
+  .readFileSync(`${__dirname}/faker-gpg-privkey.asc`, { encoding: 'utf8' }) as string;
 
 const FAKE_ROOT = '/non-existent-project';
 const FAKE_PACKAGE_CONFIG_PATH = `${FAKE_ROOT}/package.json`;
 const FAKE_PIPELINE_CONFIG_PATH = `${FAKE_ROOT}/.github/pipeline.config.js`;
 const FAKE_RELEASE_CONFIG_PATH = `${FAKE_ROOT}/release.config.js`;
-
-jest.useFakeTimers('modern');
 
 jest.mock('execa');
 
@@ -58,6 +60,17 @@ jest.mock('fs', () => {
   fs.promises = jest.createMockFromModule<typeof import('fs/promises')>('fs/promises');
   return fs;
 });
+
+const mockOpenPgpUser: { userID: unknown } = { userID: undefined };
+
+jest.doMock('openpgp', () => ({
+  decryptKey: () => ({
+    getFingerprint: () => '',
+    getKeyID: () => ({ toHex: () => '' }),
+    getPrimaryUser: () => ({ user: mockOpenPgpUser })
+  }),
+  readKey: () => ''
+}));
 
 jest.mock('isomorphic-json-fetch', () => {
   const fetch = jest.fn();
@@ -85,6 +98,7 @@ const mockedCloneRepository = asMockedFunction(cloneRepository);
 const mockedUploadPaths = asMockedFunction(uploadPaths);
 const mockedDownloadPaths = asMockedFunction(downloadPaths);
 const mockedInstallDependencies = asMockedFunction(installDependencies);
+const mockedExistsSync = asMockedFunction(existsSync);
 const mockedInstallPrivilegedDependencies = asMockedFunction(
   installPrivilegedDependencies
 );
@@ -145,6 +159,7 @@ beforeEach(() => {
   jest.doMock(FAKE_RELEASE_CONFIG_PATH);
   jest.doMock(UPLOADED_METADATA_PATH);
   jest.spyOn(process, 'cwd').mockImplementation(() => FAKE_ROOT);
+  mockOpenPgpUser.userID = { email: 'faker@fake.email' };
 });
 
 afterEach(() => {
@@ -165,7 +180,7 @@ describe('audit-runtime action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.AuditRuntime))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.AuditRuntime))(DummyContext, {})
     ).resolves.toBeUndefined();
     expect(mockedExeca).toBeCalledWith(
       'npm',
@@ -182,7 +197,7 @@ describe('audit-runtime action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.AuditRuntime))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.AuditRuntime))(DummyContext, {})
     ).rejects.toMatchObject({
       message: expect.stringContaining('bad')
     });
@@ -196,7 +211,7 @@ describe('audit-runtime action', () => {
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.AuditRuntime))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.AuditRuntime))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();
@@ -212,7 +227,7 @@ describe('cleanup-npm action', () => {
     expect.hasAssertions();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {})
     ).rejects.toMatchObject({ message: expect.stringContaining('`npmToken`') });
   });
 
@@ -239,7 +254,7 @@ describe('cleanup-npm action', () => {
       );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {
         npmToken: 'npm-token'
       })
     ).resolves.toBeUndefined();
@@ -314,7 +329,7 @@ describe('cleanup-npm action', () => {
       );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {
         npmToken: 'npm-token'
       })
     ).resolves.toBeUndefined();
@@ -373,7 +388,7 @@ describe('cleanup-npm action', () => {
       );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {
         npmToken: 'npm-token'
       })
     ).resolves.toBeUndefined();
@@ -411,7 +426,7 @@ describe('cleanup-npm action', () => {
       );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {
         npmToken: 'npm-token'
       })
     ).rejects.toMatchObject({ message: expect.stringContaining('one or more') });
@@ -419,13 +434,13 @@ describe('cleanup-npm action', () => {
     mockedWriteFileSync.mockImplementationOnce(() => toss(new Error('another error')));
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {
         npmToken: 'npm-token'
       })
     ).rejects.toMatchObject({ message: expect.stringContaining('one or more') });
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {
         npmToken: 'npm-token'
       })
     ).resolves.toBeUndefined();
@@ -448,7 +463,7 @@ describe('cleanup-npm action', () => {
       .mockImplementationOnce(() => (Promise.reject() as unknown) as ExecaReturnType);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {
         npmToken: 'npm-token'
       })
     ).resolves.toBeUndefined();
@@ -460,7 +475,7 @@ describe('cleanup-npm action', () => {
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.CleanupNpm))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.CleanupNpm))(DummyContext, {
         npmToken: 'npm-token'
       })
     ).resolves.toBeUndefined();
@@ -477,7 +492,7 @@ describe('lint action', () => {
   it('[lint] runs to completion', async () => {
     expect.hasAssertions();
     await expect(
-      (await isolatedActionImport(ComponentAction.Lint))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.Lint))(DummyContext, {})
     ).resolves.toBeUndefined();
   });
 
@@ -487,7 +502,7 @@ describe('lint action', () => {
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.Lint))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.Lint))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedInstallDependencies).not.toBeCalled();
@@ -505,7 +520,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {})
     ).rejects.toMatchObject({
       message: expect.stringContaining('`githubToken`')
     });
@@ -517,7 +532,7 @@ describe('metadata-collect action', () => {
     mockedFetchGet.mockReturnValue(Promise.reject());
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -529,14 +544,14 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
 
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(
-        { ...DUMMY_CONTEXT, eventName: 'pull_request' },
+        { ...DummyContext, eventName: 'pull_request' },
         { githubToken: 'github-token' }
       )
     ).rejects.toMatchObject({
@@ -548,7 +563,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -562,7 +577,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -573,7 +588,7 @@ describe('metadata-collect action', () => {
     mockedAccessSync.mockReset();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -585,7 +600,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -600,7 +615,7 @@ describe('metadata-collect action', () => {
     };
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -614,7 +629,7 @@ describe('metadata-collect action', () => {
     };
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -625,7 +640,7 @@ describe('metadata-collect action', () => {
     };
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -637,7 +652,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -651,7 +666,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -665,7 +680,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -677,7 +692,7 @@ describe('metadata-collect action', () => {
     jest.dontMock(FAKE_PIPELINE_CONFIG_PATH);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -689,7 +704,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -703,7 +718,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -717,7 +732,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -729,7 +744,7 @@ describe('metadata-collect action', () => {
     jest.dontMock(FAKE_RELEASE_CONFIG_PATH);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -741,7 +756,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -751,7 +766,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -765,7 +780,7 @@ describe('metadata-collect action', () => {
     } as typeof mockPackageConfig.scripts;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -775,7 +790,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -787,7 +802,7 @@ describe('metadata-collect action', () => {
     mockLocalConfig.canUploadCoverage = false;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -799,7 +814,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -811,7 +826,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
         // ? enableFastSkips: true should be the default
       })
@@ -820,7 +835,7 @@ describe('metadata-collect action', () => {
     expect(mockedInstallNode).toBeCalledTimes(0);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token',
         enableFastSkips: false
       })
@@ -833,7 +848,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -843,7 +858,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -851,7 +866,7 @@ describe('metadata-collect action', () => {
     expect(mockedInstallNode).toBeCalledTimes(1);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token',
         node: true // ? This is the default
       })
@@ -860,7 +875,7 @@ describe('metadata-collect action', () => {
     expect(mockedInstallNode).toBeCalledTimes(2);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token',
         node: false
       })
@@ -873,7 +888,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -887,7 +902,7 @@ describe('metadata-collect action', () => {
     };
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token-x',
         npmToken: 'npm-token-y',
         node: opts
@@ -901,7 +916,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -911,7 +926,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -919,7 +934,7 @@ describe('metadata-collect action', () => {
     expect(mockedCloneRepository).toBeCalledTimes(1);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token',
         repository: true // ? This is the default
       })
@@ -928,7 +943,7 @@ describe('metadata-collect action', () => {
     expect(mockedCloneRepository).toBeCalledTimes(2);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token',
         repository: false
       })
@@ -941,7 +956,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -960,7 +975,7 @@ describe('metadata-collect action', () => {
     };
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token-x',
         repository: opts
       })
@@ -974,7 +989,7 @@ describe('metadata-collect action', () => {
 
     mockedFetchGet.mockReturnValue(
       (Promise.resolve({
-        json: { ...DUMMY_GLOBAL_CONFIG, artifactRetentionDays: 50 }
+        json: { ...DummyGlobalConfig, artifactRetentionDays: 50 }
       }) as unknown) as ReturnType<typeof mockedFetchGet>
     );
 
@@ -983,7 +998,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
         // ? uploadArtifact: false should be the default
       })
@@ -995,7 +1010,7 @@ describe('metadata-collect action', () => {
       async () =>
         expect(
           (await isolatedActionImport(ComponentAction.MetadataCollect))(
-            { ...DUMMY_CONTEXT, sha: 'commit-sha-xyz' },
+            { ...DummyContext, sha: 'commit-sha-xyz' },
             {
               githubToken: 'github-token',
               uploadArtifact: true
@@ -1017,7 +1032,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -1027,7 +1042,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -1037,7 +1052,7 @@ describe('metadata-collect action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
-          ...DUMMY_CONTEXT,
+          ...DummyContext,
           actor: 'xunnamius',
           repo: { repo: 'some-repo', owner: 'xunnamius' }
         },
@@ -1052,7 +1067,7 @@ describe('metadata-collect action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
-          ...DUMMY_CONTEXT,
+          ...DummyContext,
           actor: 'xunnamius',
           repo: { repo: 'some-repo', owner: 'Xunnamius' }
         },
@@ -1067,7 +1082,7 @@ describe('metadata-collect action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
-          ...DUMMY_CONTEXT,
+          ...DummyContext,
           actor: 'dependabot[bot]',
           repo: { repo: 'some-repo', owner: 'xunnamius' },
           eventName: 'push',
@@ -1087,7 +1102,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -1110,7 +1125,7 @@ describe('metadata-collect action', () => {
       );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -1119,7 +1134,7 @@ describe('metadata-collect action', () => {
     });
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -1128,7 +1143,7 @@ describe('metadata-collect action', () => {
     });
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -1141,7 +1156,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -1151,7 +1166,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -1178,7 +1193,7 @@ describe('metadata-collect action', () => {
     };
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -1197,7 +1212,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -1212,7 +1227,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -1222,7 +1237,7 @@ describe('metadata-collect action', () => {
     mockedAccessSync.mockReset();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
@@ -1234,7 +1249,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -1246,7 +1261,7 @@ describe('metadata-collect action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
-          ...DUMMY_CONTEXT,
+          ...DummyContext,
           actor: 'xunnamius',
           repo: { repo: 'some-repo', owner: 'xunnamius' },
           eventName: 'pull_request',
@@ -1265,7 +1280,7 @@ describe('metadata-collect action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
-          ...DUMMY_CONTEXT,
+          ...DummyContext,
           actor: 'dependabot[bot]',
           repo: { repo: 'some-repo', owner: 'xunnamius' },
           eventName: 'pull_request',
@@ -1284,7 +1299,7 @@ describe('metadata-collect action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
-          ...DUMMY_CONTEXT,
+          ...DummyContext,
           actor: 'dependabot[bot]',
           repo: { repo: 'some-repo', owner: 'xunnamius' },
           eventName: 'pull_request',
@@ -1305,7 +1320,7 @@ describe('metadata-collect action', () => {
     expect.hasAssertions();
 
     mockedFetchGet.mockReturnValue(
-      (Promise.resolve({ json: DUMMY_GLOBAL_CONFIG }) as unknown) as ReturnType<
+      (Promise.resolve({ json: DummyGlobalConfig }) as unknown) as ReturnType<
         typeof mockedFetchGet
       >
     );
@@ -1318,22 +1333,22 @@ describe('metadata-collect action', () => {
     mockReleaseConfig.branches = ['branch-1', 'branch-2'];
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.toMatchObject<Partial<Metadata>>({
-      nodeCurrentVersion: DUMMY_GLOBAL_CONFIG.nodeCurrentVersion,
-      nodeTestVersions: DUMMY_GLOBAL_CONFIG.nodeTestVersions,
-      webpackTestVersions: DUMMY_GLOBAL_CONFIG.webpackTestVersions,
-      commitSha: DUMMY_CONTEXT.sha,
+      nodeCurrentVersion: DummyGlobalConfig.nodeCurrentVersion,
+      nodeTestVersions: DummyGlobalConfig.nodeTestVersions,
+      webpackTestVersions: DummyGlobalConfig.webpackTestVersions,
+      commitSha: DummyContext.sha,
       currentBranch: 'main',
       debugString: 'debug-string',
       releaseBranchConfig: ['branch-1', 'branch-2'],
       committer: {
-        email: DUMMY_GLOBAL_CONFIG.committer.email,
-        name: DUMMY_GLOBAL_CONFIG.committer.name
+        email: DummyGlobalConfig.committer.email,
+        name: DummyGlobalConfig.committer.name
       },
-      npmAuditFailLevel: DUMMY_GLOBAL_CONFIG.npmAuditFailLevel
+      npmAuditFailLevel: DummyGlobalConfig.npmAuditFailLevel
     });
   });
 
@@ -1342,7 +1357,7 @@ describe('metadata-collect action', () => {
 
     mockedFetchGet.mockReturnValue(
       (Promise.resolve({
-        json: DUMMY_GLOBAL_CONFIG
+        json: DummyGlobalConfig
       }) as unknown) as ReturnType<typeof mockedFetchGet>
     );
 
@@ -1363,7 +1378,7 @@ describe('metadata-collect action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataCollect))(
         {
-          ...DUMMY_CONTEXT,
+          ...DummyContext,
           actor: 'evil-actor',
           repo: { repo: 'good-repo', owner: 'Xunnamius' }
         },
@@ -1375,12 +1390,12 @@ describe('metadata-collect action', () => {
     ).resolves.toMatchObject<Partial<Metadata>>({
       canAutomerge: false,
       canRelease: false,
-      canRetryAutomerge: DUMMY_GLOBAL_CONFIG.canRetryAutomerge,
-      canUploadCoverage: DUMMY_GLOBAL_CONFIG.canUploadCoverage,
-      releaseActorWhitelist: DUMMY_GLOBAL_CONFIG.releaseActorWhitelist,
-      automergeActorWhitelist: DUMMY_GLOBAL_CONFIG.automergeActorWhitelist,
-      releaseRepoOwnerWhitelist: DUMMY_GLOBAL_CONFIG.releaseRepoOwnerWhitelist,
-      npmIgnoreDistTags: DUMMY_GLOBAL_CONFIG.npmIgnoreDistTags,
+      canRetryAutomerge: DummyGlobalConfig.canRetryAutomerge,
+      canUploadCoverage: DummyGlobalConfig.canUploadCoverage,
+      releaseActorWhitelist: DummyGlobalConfig.releaseActorWhitelist,
+      automergeActorWhitelist: DummyGlobalConfig.automergeActorWhitelist,
+      releaseRepoOwnerWhitelist: DummyGlobalConfig.releaseRepoOwnerWhitelist,
+      npmIgnoreDistTags: DummyGlobalConfig.npmIgnoreDistTags,
       artifactRetentionDays: 50
     });
 
@@ -1392,7 +1407,7 @@ describe('metadata-collect action', () => {
 
     mockedFetchGet.mockReturnValue(
       (Promise.resolve({
-        json: DUMMY_GLOBAL_CONFIG
+        json: DummyGlobalConfig
       }) as unknown) as ReturnType<typeof mockedFetchGet>
     );
 
@@ -1403,7 +1418,7 @@ describe('metadata-collect action', () => {
     mockLocalConfig.debugString = 'debug-string';
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token'
         // forceWarnings: false should be the default
       })
@@ -1412,7 +1427,7 @@ describe('metadata-collect action', () => {
     expect(mockedCoreWarning).not.toBeCalledWith('PIPELINE IS RUNNING IN DEBUG MODE');
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token',
         forceWarnings: true
       })
@@ -1428,7 +1443,7 @@ describe('metadata-collect action', () => {
 
     mockedFetchGet.mockReturnValue(
       (Promise.resolve({
-        json: DUMMY_GLOBAL_CONFIG
+        json: DummyGlobalConfig
       }) as unknown) as ReturnType<typeof mockedFetchGet>
     );
 
@@ -1437,7 +1452,7 @@ describe('metadata-collect action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
         githubToken: 'github-token',
         forceWarnings: true
       })
@@ -1448,7 +1463,7 @@ describe('metadata-collect action', () => {
     await withMockedEnv(
       async () => {
         await expect(
-          (await isolatedActionImport(ComponentAction.MetadataCollect))(DUMMY_CONTEXT, {
+          (await isolatedActionImport(ComponentAction.MetadataCollect))(DummyContext, {
             githubToken: 'github-token',
             forceWarnings: true
           })
@@ -1470,7 +1485,7 @@ describe('metadata-download action', () => {
     expect.hasAssertions();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {})
     ).rejects.toMatchObject({
       message: expect.stringContaining('`githubToken`')
     });
@@ -1484,7 +1499,7 @@ describe('metadata-download action', () => {
     );
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -1495,7 +1510,7 @@ describe('metadata-download action', () => {
     jest.dontMock(UPLOADED_METADATA_PATH);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token'
       })
     ).rejects.toMatchObject({
@@ -1507,7 +1522,7 @@ describe('metadata-download action', () => {
     expect.hasAssertions();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -1515,7 +1530,7 @@ describe('metadata-download action', () => {
     expect(mockedInstallNode).toBeCalledTimes(1);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token',
         node: true // ? This is the default
       })
@@ -1524,7 +1539,7 @@ describe('metadata-download action', () => {
     expect(mockedInstallNode).toBeCalledTimes(2);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token',
         node: false
       })
@@ -1541,7 +1556,7 @@ describe('metadata-download action', () => {
     };
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token-x',
         npmToken: 'npm-token-y',
         node: opts
@@ -1555,7 +1570,7 @@ describe('metadata-download action', () => {
     expect.hasAssertions();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token'
       })
     ).resolves.not.toBeUndefined();
@@ -1563,7 +1578,7 @@ describe('metadata-download action', () => {
     expect(mockedCloneRepository).toBeCalledTimes(1);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token',
         repository: true // ? This is the default
       })
@@ -1572,7 +1587,7 @@ describe('metadata-download action', () => {
     expect(mockedCloneRepository).toBeCalledTimes(2);
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token',
         repository: false
       })
@@ -1594,7 +1609,7 @@ describe('metadata-download action', () => {
     };
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token-x',
         repository: opts
       })
@@ -1611,7 +1626,7 @@ describe('metadata-download action', () => {
     mockMetadata.hasDocs = false;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token-x'
         // forceWarnings: false should be the default
       })
@@ -1620,7 +1635,7 @@ describe('metadata-download action', () => {
     expect(mockedCoreWarning).not.toBeCalled();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token-x',
         forceWarnings: true
       })
@@ -1638,7 +1653,7 @@ describe('metadata-download action', () => {
     mockMetadata.releaseBranchConfig = [];
 
     await expect(
-      (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
         githubToken: 'github-token-x',
         forceWarnings: false
       })
@@ -1649,7 +1664,7 @@ describe('metadata-download action', () => {
     await withMockedEnv(
       async () => {
         await expect(
-          (await isolatedActionImport(ComponentAction.MetadataDownload))(DUMMY_CONTEXT, {
+          (await isolatedActionImport(ComponentAction.MetadataDownload))(DummyContext, {
             githubToken: 'github-token-x',
             forceWarnings: true
           })
@@ -1708,7 +1723,7 @@ describe('metadata-download action', () => {
     await expect(
       (await isolatedActionImport(ComponentAction.MetadataDownload))(
         {
-          ...DUMMY_CONTEXT,
+          ...DummyContext,
           actor: 'evil-actor',
           eventName: 'workflow_run',
           ref: 'refs/heads/evil-branch',
@@ -1734,7 +1749,290 @@ describe('metadata-download action', () => {
 });
 
 describe('smart-deploy action', () => {
-  test.todo('[smart-deploy] (todo)');
+  it('[smart-deploy] throws if missing required options', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({ message: expect.stringContaining('`npmToken`') });
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({ message: expect.stringContaining('`gpgPassphrase`') });
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('`gpgPrivKeyArmored`')
+    });
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey
+      })
+    ).rejects.toMatchObject({ message: expect.stringContaining('`githubToken`') });
+
+    expect(mockedInstallPrivilegedDependencies).not.toBeCalled();
+  });
+
+  it("[smart-deploy] throws if node_modules exists where it shouldn't", async () => {
+    expect.hasAssertions();
+
+    mockedExistsSync.mockReturnValue(true);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('illegal build artifact')
+    });
+  });
+
+  it('[smart-deploy] throws if committer email != privKey email', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.canRelease = true;
+    // @ts-expect-error testing bad metadata
+    mockMetadata.committer = {};
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('does not match committer email')
+    });
+  });
+
+  it('[smart-deploy] throws if privKey info is strangely empty', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.canRelease = true;
+    mockMetadata.committer = { name: 'faker name', email: 'faker@fake.email' };
+    mockedExeca.mockReturnValue(({ stdout: '' } as unknown) as ExecaReturnType);
+
+    mockOpenPgpUser.userID = undefined;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('PK email (undefined) is missing')
+    });
+  });
+
+  it('[smart-deploy] performs gpg setup and semantic-release if canRelease', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.canRelease = true;
+    mockMetadata.hasPrivate = true;
+    mockMetadata.hasDeploy = true;
+    mockMetadata.currentBranch = 'canary';
+    mockMetadata.committer = { name: 'faker name', email: 'faker@fake.email' };
+
+    mockedExeca.mockReturnValue(({ stdout: '' } as unknown) as ExecaReturnType);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledWith(
+      'npx',
+      ['--no-install', 'semantic-release'],
+      expect.objectContaining({
+        env: {
+          NPM_IS_PRIVATE: 'true',
+          NPM_TOKEN: 'npm-token',
+          GH_TOKEN: 'github-token',
+          SHOULD_UPDATE_CHANGELOG: 'false',
+          SHOULD_DEPLOY: 'true',
+          GIT_AUTHOR_NAME: 'faker name',
+          GIT_AUTHOR_EMAIL: 'faker@fake.email',
+          GIT_COMMITTER_NAME: 'faker name',
+          GIT_COMMITTER_EMAIL: 'faker@fake.email'
+        }
+      })
+    );
+
+    mockedExeca.mockClear();
+    mockMetadata.hasPrivate = false;
+    mockMetadata.hasDeploy = true;
+    mockMetadata.currentBranch = 'main';
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledWith(
+      'npx',
+      ['--no-install', 'semantic-release'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          NPM_IS_PRIVATE: 'false',
+          SHOULD_UPDATE_CHANGELOG: 'true'
+        })
+      })
+    );
+  });
+
+  it.skip('[smart-deploy] performs auto-merge if canAutomerge and !canRelease', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.canAutomerge = true;
+    mockMetadata.canRelease = false;
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('[smart-deploy] uploads codecov coverage info with restricted env', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.canRelease = true;
+    mockMetadata.committer = { name: 'tester', email: 'faker@fake.email' };
+    mockedExeca.mockReturnValue(({ stdout: '' } as unknown) as ExecaReturnType);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledWith(
+      'bash',
+      expect.arrayContaining(['<(curl -s https://codecov.io/bash)']),
+      expect.objectContaining({
+        env: {
+          GITHUB_TOKEN: 'null',
+          GH_TOKEN: 'null'
+        }
+      })
+    );
+
+    mockedExeca.mockClear();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token',
+        codecovToken: 'codecov-token'
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockedExeca).toBeCalledWith(
+      'bash',
+      expect.arrayContaining(['<(curl -s https://codecov.io/bash)']),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          CODECOV_TOKEN: 'codecov-token',
+          GITHUB_TOKEN: 'null',
+          GH_TOKEN: 'null'
+        })
+      })
+    );
+  });
+
+  it('[smart-deploy] it is always the case that options.repository.checkoutRef == false', async () => {
+    expect.hasAssertions();
+
+    mockMetadata.canRelease = true;
+    mockMetadata.committer = { name: 'tester', email: 'faker@fake.email' };
+    mockedExeca.mockReturnValue(({ stdout: '' } as unknown) as ExecaReturnType);
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token',
+        repository: {
+          fetchDepth: 5,
+          checkoutRef: 'badness'
+        }
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mdSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ repository: { fetchDepth: 5, checkoutRef: false } })
+    );
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token',
+        repository: true
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mdSpy).toBeCalledWith(
+      expect.anything(),
+      expect.objectContaining({ repository: { checkoutRef: false } })
+    );
+  });
+
+  it('[smart-deploy] throws if no action taken during deploy', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
+        npmToken: 'npm-token',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
+        githubToken: 'github-token'
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('proper routine')
+    });
+  });
 
   it('[smart-deploy] skipped if metadata.shouldSkipCi == true', async () => {
     expect.hasAssertions();
@@ -1742,10 +2040,10 @@ describe('smart-deploy action', () => {
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.SmartDeploy))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
         npmToken: 'npm-token',
-        gpgPassphrase: 'gpg-passphrase',
-        gpgPrivateKey: 'gpg-private-key',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
         githubToken: 'github-token'
       })
     ).resolves.toBeUndefined();
@@ -1763,10 +2061,10 @@ describe('smart-deploy action', () => {
     mockMetadata.shouldSkipCd = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.SmartDeploy))(DUMMY_CONTEXT, {
+      (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
         npmToken: 'npm-token',
-        gpgPassphrase: 'gpg-passphrase',
-        gpgPrivateKey: 'gpg-private-key',
+        gpgPassphrase: 'faker',
+        gpgPrivKeyArmored: DummyGpgPrivKey,
         githubToken: 'github-token'
       })
     ).resolves.toBeUndefined();
@@ -1784,7 +2082,7 @@ describe('test-integration-client action', () => {
     expect.hasAssertions();
     await expect(
       (await isolatedActionImport(ComponentAction.TestIntegrationClient))(
-        DUMMY_CONTEXT,
+        DummyContext,
         {}
       )
     ).resolves.toBeUndefined();
@@ -1797,7 +2095,7 @@ describe('test-integration-client action', () => {
 
     await expect(
       (await isolatedActionImport(ComponentAction.TestIntegrationClient))(
-        DUMMY_CONTEXT,
+        DummyContext,
         {}
       )
     ).resolves.toBeUndefined();
@@ -1815,7 +2113,7 @@ describe('test-integration-externals action', () => {
     expect.hasAssertions();
     await expect(
       (await isolatedActionImport(ComponentAction.TestIntegrationExternals))(
-        DUMMY_CONTEXT,
+        DummyContext,
         {}
       )
     ).resolves.toBeUndefined();
@@ -1828,7 +2126,7 @@ describe('test-integration-externals action', () => {
 
     await expect(
       (await isolatedActionImport(ComponentAction.TestIntegrationExternals))(
-        DUMMY_CONTEXT,
+        DummyContext,
         {}
       )
     ).resolves.toBeUndefined();
@@ -1845,7 +2143,7 @@ describe('test-integration-node action', () => {
   it('[test-integration-node] runs to completion', async () => {
     expect.hasAssertions();
     await expect(
-      (await isolatedActionImport(ComponentAction.TestIntegrationNode))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.TestIntegrationNode))(DummyContext, {})
     ).resolves.toBeUndefined();
   });
 
@@ -1855,7 +2153,7 @@ describe('test-integration-node action', () => {
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.TestIntegrationNode))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.TestIntegrationNode))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedInstallDependencies).not.toBeCalled();
@@ -1871,7 +2169,7 @@ describe('test-integration-webpack action', () => {
     expect.hasAssertions();
     await expect(
       (await isolatedActionImport(ComponentAction.TestIntegrationWebpack))(
-        DUMMY_CONTEXT,
+        DummyContext,
         {}
       )
     ).resolves.toBeUndefined();
@@ -1884,7 +2182,7 @@ describe('test-integration-webpack action', () => {
 
     await expect(
       (await isolatedActionImport(ComponentAction.TestIntegrationWebpack))(
-        DUMMY_CONTEXT,
+        DummyContext,
         {}
       )
     ).resolves.toBeUndefined();
@@ -1902,7 +2200,7 @@ describe('test-unit-then-build action', () => {
     expect.hasAssertions();
 
     await expect(
-      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalledWith(
@@ -1914,7 +2212,7 @@ describe('test-unit-then-build action', () => {
     mockMetadata.hasDocs = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledWith(
@@ -1934,7 +2232,7 @@ describe('test-unit-then-build action', () => {
       async () => {
         await expect(
           (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(
-            DUMMY_CONTEXT,
+            DummyContext,
             {}
           )
         ).resolves.toBeUndefined();
@@ -1951,7 +2249,7 @@ describe('test-unit-then-build action', () => {
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.TestUnitThenBuild))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedInstallDependencies).not.toBeCalled();
@@ -1970,7 +2268,7 @@ describe('verify-release action', () => {
     mockMetadata.hasPrivate = false;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledTimes(2);
@@ -1980,7 +2278,7 @@ describe('verify-release action', () => {
     mockMetadata.hasPrivate = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledTimes(0);
@@ -1990,7 +2288,7 @@ describe('verify-release action', () => {
     mockMetadata.hasPrivate = false;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledTimes(3);
@@ -2000,7 +2298,7 @@ describe('verify-release action', () => {
     mockMetadata.hasPrivate = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).toBeCalledTimes(0);
@@ -2015,13 +2313,10 @@ describe('verify-release action', () => {
       .mockImplementationOnce(() => (true as unknown) as ExecaReturnType);
 
     const action = (await isolatedActionImport(ComponentAction.VerifyRelease))(
-      DUMMY_CONTEXT,
+      DummyContext,
       {}
     );
 
-    await undefined;
-    await undefined;
-    await jest.runOnlyPendingTimers();
     await expect(action).resolves.toBeUndefined();
   }, 2147483647);
 
@@ -2048,25 +2343,9 @@ describe('verify-release action', () => {
       .mockReturnValueOnce(99999999);
 
     const action = (await isolatedActionImport(ComponentAction.VerifyRelease))(
-      DUMMY_CONTEXT,
+      DummyContext,
       {}
     );
-
-    await undefined;
-    await undefined;
-    await jest.runOnlyPendingTimers();
-    await undefined;
-    await undefined;
-    await jest.runOnlyPendingTimers();
-    await undefined;
-    await undefined;
-    await jest.runOnlyPendingTimers();
-    await undefined;
-    await undefined;
-    await jest.runOnlyPendingTimers();
-    await undefined;
-    await undefined;
-    await jest.runOnlyPendingTimers();
 
     await expect(action).rejects.toMatchObject({
       message: expect.stringContaining('unable to install')
@@ -2081,7 +2360,7 @@ describe('verify-release action', () => {
       .mockImplementationOnce(() => toss(new Error('badlessness')));
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DummyContext, {})
     ).rejects.toMatchObject({
       message: expect.stringContaining('generic execution test failed')
     });
@@ -2098,7 +2377,7 @@ describe('verify-release action', () => {
       .mockImplementationOnce(() => toss(new Error('badlessness')));
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DummyContext, {})
     ).rejects.toMatchObject({
       message: expect.stringContaining('npx cli test failed')
     });
@@ -2110,7 +2389,7 @@ describe('verify-release action', () => {
     mockMetadata.shouldSkipCi = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();
@@ -2129,7 +2408,7 @@ describe('verify-release action', () => {
     mockMetadata.shouldSkipCd = true;
 
     await expect(
-      (await isolatedActionImport(ComponentAction.VerifyRelease))(DUMMY_CONTEXT, {})
+      (await isolatedActionImport(ComponentAction.VerifyRelease))(DummyContext, {})
     ).resolves.toBeUndefined();
 
     expect(mockedExeca).not.toBeCalled();
