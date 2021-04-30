@@ -1,7 +1,7 @@
 {
   "name": "__not-installable__-privileged-sandbox",
   "private": true,
-  "description": "This package.json file is downloaded and used to install privileged npm dependencies for the release-automerge component action of the @xunnamius/projector-pipeline package. Additionally, these dependencies are purposely locked to specific versions to mitigate supply chain attacks",
+  "description": "This package.json file is downloaded and used to install privileged npm dependencies for the release-automerge component action of the @xunnamius/projector-pipeline package. Additionally, these dependencies are purposely locked to specific versions to mitigate supply chain attacks. Be sure to carefully audit changes between the actual source of versions when performing updates to these deps!",
   "dependencies": {
     "@semantic-release/changelog": "5.0.1",
     "@semantic-release/exec": "5.0.0",
@@ -9,7 +9,6 @@
     "conventional-changelog-angular": "5.0.12",
     "conventional-changelog-cli": "2.1.1",
     "debug": "4.3.1",
-    "escape-string-regexp": "4.0.0",
     "execa": "5.0.0",
     "prettier": "2.2.1",
     "remark-cli": "9.0.0",
