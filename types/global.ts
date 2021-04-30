@@ -376,14 +376,15 @@ export type InvokerOptions = {
   codecovToken?: string;
 
   /**
-   * Contains the GPG private key. Usually `${{ secrets.GPG_PRIVATE_KEY }}` is
-   * the correct value. Do not specify if not required.
+   * Contains the ASCII armored GPG private key. Usually
+   * `${{secrets.GPG_PRIVATE_KEY}}` is the correct value. Do not specify if not
+   * required.
    */
-  gpgPrivateKey?: string;
+  gpgPrivKeyArmored?: string;
 
   /**
    * Contains the GPG private key passphrase. Usually
-   * `${{ secrets.GPG_PASSPHRASE }}` is the correct value. Do not specify if not
+   * `${{secrets.GPG_PASSPHRASE}}` is the correct value. Do not specify if not
    * required.
    */
   gpgPassphrase?: string;
