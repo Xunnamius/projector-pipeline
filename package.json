@@ -63,7 +63,7 @@
     "folder-hash": "^4.0.1",
     "isomorphic-json-fetch": "^1.0.15",
     "micromatch": "^4.0.4",
-    "openpgp": "5.0.0-2",
+    "openpgp": "5.0.0-3",
     "semver": "^7.3.5",
     "toss-expression": "^0.1.0"
   },
