@@ -68,7 +68,7 @@
     "toss-expression": "^0.1.0"
   },
   "devDependencies": {
-    "@babel/cli": "^7.13.16",
+    "@babel/cli": "^7.14.3",
     "@babel/core": "^7.13.16",
     "@babel/eslint-parser": "^7.13.14",
     "@babel/plugin-proposal-export-default-from": "^7.12.13",
@@ -105,7 +105,7 @@
     "conventional-changelog-angular": "^5.0.12",
     "conventional-changelog-cli": "^2.1.1",
     "dotenv": "^8.2.0",
-    "eslint": "^7.24.0",
+    "eslint": "^7.27.0",
     "eslint-import-resolver-typescript": "^2.4.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-jest": "^24.3.5",
