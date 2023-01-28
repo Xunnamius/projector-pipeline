@@ -1,34 +1,34 @@
 {
   "compilerOptions": {
-    "target": "esnext",
-    "module": "esnext",
     "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "alwaysStrict": true,
+    "baseUrl": ".",
     "checkJs": false,
     // ? Only for Next.js
     // "jsx": "preserve",
     "declaration": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "inlineSourceMap": true,
     "isolatedModules": true,
-    "strict": true,
-    "alwaysStrict": true,
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "node",
+    "noEmit": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "moduleResolution": "node",
-    "baseUrl": ".",
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "skipLibCheck": true,
-    "noEmit": true,
-    "esModuleInterop": true,
     "resolveJsonModule": true,
-    "inlineSourceMap": true
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "esnext"
   },
+  "exclude": ["node_modules"],
   "include": [
-    "types/**/*.ts*",
-    "lib/**/*.ts*",
-    "src/**/*.ts*",
-    "test/**/*.ts*",
-    "external-scripts/**/*.ts*"
-  ],
-  "exclude": ["node_modules"]
+    "types/**/*",
+    "lib/**/*",
+    "src/**/*",
+    "test/**/*",
+    "external-scripts/**/*"
+  ]
 }

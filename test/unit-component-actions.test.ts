@@ -84,6 +84,20 @@ jest.mock('@actions/core', () => ({
   info: jest.fn()
 }));
 
+const mockedOctoHook = jest.fn();
+const mockedOctoPullsGet = jest.fn();
+const mockedOctoPullsMerge = jest.fn();
+
+jest.doMock('@actions/github', () => ({
+  getOctokit: () => ({
+    hook: { error: mockedOctoHook },
+    pulls: {
+      get: mockedOctoPullsGet,
+      merge: mockedOctoPullsMerge
+    }
+  })
+}));
+
 jest.mock('../src/utils/env');
 jest.mock('../src/utils/github');
 jest.mock('../src/utils/install');
@@ -1871,7 +1885,7 @@ describe('smart-deploy action', () => {
       ['--no-install', 'semantic-release'],
       expect.objectContaining({
         env: {
-          NPM_IS_PRIVATE: 'true',
+          NPM_IS_PRIVATE: 'true', // TODO: ???
           NPM_TOKEN: 'npm-token',
           GH_TOKEN: 'github-token',
           SHOULD_UPDATE_CHANGELOG: 'false',
@@ -1903,18 +1917,19 @@ describe('smart-deploy action', () => {
       ['--no-install', 'semantic-release'],
       expect.objectContaining({
         env: expect.objectContaining({
-          NPM_IS_PRIVATE: 'false',
+          NPM_IS_PRIVATE: 'false', // TODO: ???
           SHOULD_UPDATE_CHANGELOG: 'true'
         })
       })
     );
   });
 
-  it.skip('[smart-deploy] performs auto-merge if canAutomerge and !canRelease', async () => {
+  it('[smart-deploy] performs auto-merge if canAutomerge and !canRelease', async () => {
     expect.hasAssertions();
 
     mockMetadata.canAutomerge = true;
     mockMetadata.canRelease = false;
+    mockMetadata.prNumber = 55;
 
     await expect(
       (await isolatedActionImport(ComponentAction.SmartDeploy))(DummyContext, {
@@ -1924,6 +1939,10 @@ describe('smart-deploy action', () => {
         githubToken: 'github-token'
       })
     ).resolves.toBeUndefined();
+
+    void mockedOctoHook;
+    void mockedOctoPullsGet;
+    void mockedOctoPullsMerge;
   });
 
   it('[smart-deploy] uploads codecov coverage info with restricted env', async () => {
