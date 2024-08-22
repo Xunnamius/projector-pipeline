@@ -9,7 +9,7 @@
 
 <!-- prettier-ignore-end -->
 
-# ⛔️ DEPRECATED
+# ⛔️ DEPRECATED/UNMAINTAINED
 
 > \[!CAUTION]
 >
