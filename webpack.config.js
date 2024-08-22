@@ -54,7 +54,8 @@ const libConfig = {
   stats: {
     orphanModules: true,
     providedExports: true,
-    usedExports: true
+    usedExports: true,
+    errorDetails: true
   },
 
   resolve: { extensions: ['.ts', '.wasm', '.mjs', '.cjs', '.js', '.json'] },
@@ -62,7 +63,7 @@ const libConfig = {
     rules: [{ test: /\.(ts|js)x?$/, loader: 'babel-loader', exclude: /node_modules/ }]
   },
   optimization: { usedExports: true },
-  ignoreWarnings: [/critical dependency:/i],
+  ignoreWarnings: [/critical dependency: the request of a dependency is an expression/i],
   plugins: [...envPlugins]
 };
 
@@ -87,7 +88,8 @@ const externalsConfig = {
   stats: {
     orphanModules: true,
     providedExports: true,
-    usedExports: true
+    usedExports: true,
+    errorDetails: true
   },
 
   resolve: { extensions: ['.ts', '.wasm', '.mjs', '.cjs', '.js', '.json'] },
@@ -95,7 +97,7 @@ const externalsConfig = {
     rules: [{ test: /\.(ts|js)x?$/, loader: 'babel-loader', exclude: /node_modules/ }]
   },
   optimization: { usedExports: true },
-  ignoreWarnings: [/critical dependency:/i],
+  ignoreWarnings: [/critical dependency: the request of a dependency is an expression/i],
   plugins: [
     ...envPlugins,
     // * ▼ For non-bundled externals, make entry file executable w/ shebang
@@ -122,7 +124,8 @@ const externalsConfig = {
   stats: {
     orphanModules: true,
     providedExports: true,
-    usedExports: true
+    usedExports: true,
+    errorDetails: true
   },
 
   resolve: { extensions: ['.ts', '.wasm', '.mjs', '.cjs', '.js', '.json'] },
@@ -130,7 +133,7 @@ const externalsConfig = {
     rules: [{ test: /\.(ts|js)x?$/, loader: 'babel-loader', exclude: /node_modules/ }]
   },
   optimization: { usedExports: true },
-  ignoreWarnings: [/critical dependency:/i],
+  ignoreWarnings: [/critical dependency: the request of a dependency is an expression/i],
   plugins: [
     ...envPlugins,
     // * ▼ For bundled CLI applications, make entry file executable w/ shebang

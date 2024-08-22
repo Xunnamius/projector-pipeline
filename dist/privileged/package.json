@@ -25,7 +25,7 @@
     "remark-lint-no-unused-definitions": "2.0.1",
     "remark-lint-ordered-list-marker-style": "2.0.1",
     "remark-reference-links": "5.0.0",
-    "semantic-release": "Xunnamius/semantic-release",
+    "semantic-release": "https://xunn.at/semantic-release-atam",
     "semver": "7.3.5"
   }
 }

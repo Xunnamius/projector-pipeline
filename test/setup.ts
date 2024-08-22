@@ -1,7 +1,8 @@
-import { name as pkgName, version as pkgVersion } from '../package.json';
+import { name as pkgName, version as pkgVersion } from 'package';
 import { tmpdir } from 'os';
 import { promises as fs } from 'fs';
 import { resolve } from 'path';
+import { GuruMeditationError } from 'named-app-errors';
 import execa from 'execa';
 import uniqueFilename from 'unique-filename';
 import debugFactory from 'debug';
@@ -141,7 +142,7 @@ export async function isolatedImport(path: string) {
         );
       }
 
-      return r.__esModule ? r.default : r;
+      return r.__esModule && r.default ? r.default : r;
     })(require(path));
   });
 
@@ -383,6 +384,9 @@ export function npmLinkSelfFixture(): MockFixture {
   };
 }
 
+// TODO: XXX: make ALL debug output print error (match with regex if found) so
+// TODO: XXX: we don't miss any helpful error messages!
+// TODO: XXX:
 // TODO: XXX: make this into a separate (mock-fixture) package (along w/ below)
 export function webpackTestFixture(): MockFixture {
   return {
@@ -390,7 +394,9 @@ export function webpackTestFixture(): MockFixture {
     description: 'setting up webpack jest integration test',
     setup: async (ctx) => {
       if (typeof ctx.options.webpackVersion != 'string') {
-        throw new Error('invalid or missing options.webpackVersion, expected string');
+        throw new GuruMeditationError(
+          'invalid or missing options.webpackVersion, expected string'
+        );
       }
 
       const indexPath = Object.keys(ctx.fileContents).find((path) =>
@@ -398,10 +404,14 @@ export function webpackTestFixture(): MockFixture {
       );
 
       if (!indexPath)
-        throw new Error('could not find initial contents for src/index file');
+        throw new GuruMeditationError(
+          'could not find initial contents for src/index file'
+        );
 
       if (!ctx.fileContents['webpack.config.js'])
-        throw new Error('could not find initial contents for webpack.config.js file');
+        throw new GuruMeditationError(
+          'could not find initial contents for webpack.config.js file'
+        );
 
       await Promise.all([
         writeFile(`${ctx.root}/${indexPath}`, ctx.fileContents[indexPath]),
@@ -447,7 +457,9 @@ export function nodeImportTestFixture(): MockFixture {
       );
 
       if (!indexPath)
-        throw new Error('could not find initial contents for src/index file');
+        throw new GuruMeditationError(
+          'could not find initial contents for src/index file'
+        );
 
       await writeFile(`${ctx.root}/${indexPath}`, ctx.fileContents[indexPath]);
 
@@ -475,7 +487,9 @@ export function gitRepositoryFixture(): MockFixture {
     description: 'configuring fixture root to be a git repository',
     setup: async (ctx) => {
       if (ctx.options.setupGit && typeof ctx.options.setupGit != 'function') {
-        throw new Error('invalid or missing options.setupGit, expected function');
+        throw new GuruMeditationError(
+          'invalid or missing options.setupGit, expected function'
+        );
       }
 
       ctx.git = gitFactory({ baseDir: ctx.root });
@@ -497,7 +511,9 @@ export function dummyDirectoriesFixture(): MockFixture {
     description: 'creating dummy directories under fixture root',
     setup: async (ctx) => {
       if (!Array.isArray(ctx.options.directoryPaths)) {
-        throw new Error('invalid or missing options.directoryPaths, expected array');
+        throw new GuruMeditationError(
+          'invalid or missing options.directoryPaths, expected array'
+        );
       }
 
       await Promise.all(
@@ -610,6 +626,7 @@ export async function withMockedFixture<
   const setupDebugger = async (fixture: CustomizedMockFixture, error = false) => {
     const toString = async (
       p: CustomizedMockFixture['name'] | CustomizedMockFixture['description']
+      // TODO: replace with toss
     ) => (typeof p == 'function' ? p(ctx) : typeof p == 'string' ? p : ':impossible:');
     const name = await toString(fixture.name.toString());
     const desc = await toString(fixture.description);

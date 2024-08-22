@@ -5,7 +5,7 @@ import { installPrivilegedDependencies } from '../utils/install';
 import { downloadPaths } from '../utils/github';
 import { retry } from '../utils/retry';
 import { existsSync, writeFileSync } from 'fs';
-import { context, getOctokit } from '@actions/github';
+import { getOctokit } from '@actions/github';
 import { RequestError } from '@octokit/request-error';
 import metadataDownload from './metadata-download';
 import debugFactory from 'debug';
@@ -120,7 +120,12 @@ let configureGpg = async (
   configureGpg = async () => debug('(call to configureGpg was a noop)');
 };
 
-const automerge = async (githubToken: string, prNumber: number) => {
+const automerge = async (
+  githubToken: string,
+  prNumber: number,
+  repoOwner: string,
+  repoName: string
+) => {
   debug('attempting auto-merge');
 
   const octokit = await getOctokit(githubToken, {
@@ -156,8 +161,8 @@ const automerge = async (githubToken: string, prNumber: number) => {
   });
 
   const pullRequest = await octokit.pulls.get({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
+    owner: repoOwner,
+    repo: repoName,
     pull_number: prNumber
   });
 
@@ -187,8 +192,8 @@ const automerge = async (githubToken: string, prNumber: number) => {
   stage = 'merge';
 
   const mergeAttempt = await octokit.pulls.merge({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
+    owner: repoOwner,
+    repo: repoName,
     pull_number: prNumber,
     sha: pullRequest.data.head.sha,
     merge_method: 'merge'
@@ -276,7 +281,7 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
       await execa('npx', ['--no-install', 'semantic-release'], {
         stdio: 'inherit',
         env: {
-          NPM_IS_PRIVATE: hasPrivate ? 'true' : 'false',
+          NPM_IS_PRIVATE: hasPrivate ? 'true' : 'false', // TODO: ???
           NPM_TOKEN: options.npmToken,
           GH_TOKEN: options.githubToken,
           SHOULD_UPDATE_CHANGELOG: currentBranch == 'main' ? 'true' : 'false',
@@ -292,41 +297,50 @@ export default async function (context: RunnerContext, options: InvokerOptions) 
         throw new ComponentActionError('could not get PR number from metadata');
 
       const ms2s = (ms: number) => Math.trunc(ms / 1000);
-      await retry(() => automerge(options.githubToken as string, prNumber), {
-        maxAttempts: Infinity,
-        maxTotalElapsedMs: retryCeilingSeconds,
-        maxJitterMs: 5000,
-        minDelayMs: 10000,
-        maxDelayMs: 30000,
-        onFailure(lastError, attempts, nextAttemptMs, totalElapsedMs) {
-          const afterText = `after ${ms2s(
-            totalElapsedMs
-          )} seconds and ${attempts} attempts`;
+      await retry(
+        () =>
+          automerge(
+            options.githubToken as string,
+            prNumber,
+            context.repo.owner,
+            context.repo.repo
+          ),
+        {
+          maxAttempts: Infinity,
+          maxTotalElapsedMs: retryCeilingSeconds,
+          maxJitterMs: 5000,
+          minDelayMs: 10000,
+          maxDelayMs: 30000,
+          onFailure(lastError, attempts, nextAttemptMs, totalElapsedMs) {
+            const afterText = `after ${ms2s(
+              totalElapsedMs
+            )} seconds and ${attempts} attempts`;
 
-          if (lastError instanceof RetryError) {
-            core.info(
-              `Auto-merge experienced a transient failure ${afterText}. Next attempt in ${ms2s(
-                nextAttemptMs
-              )} seconds. Details: ${lastError.message}`
-            );
-            return true;
-          } else if (lastError instanceof SkipError) {
-            core.info(`Auto-merge aborted ${afterText}. Details: ${lastError.message}`);
-            return false;
-          } else {
+            if (lastError instanceof RetryError) {
+              core.info(
+                `Auto-merge experienced a transient failure ${afterText}. Next attempt in ${ms2s(
+                  nextAttemptMs
+                )} seconds. Details: ${lastError.message}`
+              );
+              return true;
+            } else if (lastError instanceof SkipError) {
+              core.info(`Auto-merge aborted ${afterText}. Details: ${lastError.message}`);
+              return false;
+            } else {
+              throw new ComponentActionError(
+                `Auto-merge permanently failed ${afterText}. Details: ${lastError}`
+              );
+            }
+          },
+          onLimitReached(lastError, attempts, _, totalElapsedMs) {
             throw new ComponentActionError(
-              `Auto-merge permanently failed ${afterText}. Details: ${lastError}`
+              `Auto-merge permanently failed after ${ms2s(
+                totalElapsedMs
+              )} seconds and ${attempts} attempts. Details: ${lastError}`
             );
           }
-        },
-        onLimitReached(lastError, attempts, _, totalElapsedMs) {
-          throw new ComponentActionError(
-            `Auto-merge permanently failed after ${ms2s(
-              totalElapsedMs
-            )} seconds and ${attempts} attempts. Details: ${lastError}`
-          );
         }
-      });
+      );
     } else throw new ComponentActionError('failed to determine proper routine');
 
     if (currentBranch == 'main') {
