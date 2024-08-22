@@ -3,20 +3,16 @@
 <!-- badges-start -->
 
 [![Black Lives Matter!][badge-blm]][link-blm]
-[![Maintenance status][badge-maintenance]][link-repo]
-[![Last commit timestamp][badge-last-commit]][link-repo]
-[![Open issues][badge-issues]][link-issues]
-[![Pull requests][badge-pulls]][link-pulls]
-[![codecov][badge-codecov]][link-codecov]
-[![Source license][badge-license]][link-license]
-[![npm version][badge-npm]][link-npm]
-[![semantic-release][badge-semantic-release]][link-semantic-release]
+[![!!UNMAINTAINED!!][badge-unmaintained]][link-unmaintained]
 
 <!-- badges-end -->
 
 <!-- prettier-ignore-end -->
 
-# projector-pipeline
+# ⛔️ DEPRECATED
+
+> \[!CAUTION] This project has been superseded (and all of its useful bits
+> subsumed) by [@-xun/pipeline][4].
 
 This project contains the collection of component actions powering the CI/CD
 pipeline that undergirds [Projector][2]-based projects. For more details on the
@@ -347,13 +343,13 @@ with:
 This action accepts an `options` JSON string input with the following properties
 and constraints:
 
-| Name             | Type       | Default | Description                                                                                                                                                                                                                                                                                                                     |
-| :--------------- | :--------- | :------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `github-token`   | _`string`_ | (none)  | **[REQUIRED]** A GitHub access token with read-write access to the appropriate repository or repositories.                                                                                                                                                                                                                      |
-| `npm-token`      | _`string`_ | (none)  | **[REQUIRED]** An npm access token with read-write access to the appropriate package(s).                                                                                                                                                                                                                                        |
-| `codecov-token`  | _`string`_ | (none)  | A Codecov token corresponding to the target repository. Not necessary and should be omitted for public repositories.                                                                                                                                                                                                            |
-| `gpg-pk-armored` | _`string`_ | (none)  | **[REQUIRED]** The [armored GPG private key](https://www.techopedia.com/definition/23150/ascii-armor) used for [git signing purposes](https://docs.github.com/en/github/authenticating-to-github/about-commit-signature-verification#about-commit-signature-verification). This key must correspond to [`committer.email`][23]. |
-| `gpg-passphrase` | _`string`_ | (none)  | **[REQUIRED]** The passphrase that unlocks `gpg-pk-armored`.                                                                                                                                                                                                                                                                    |
+| Name             | Type       | Default | Description                                                                                                                              |
+| :--------------- | :--------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-token`   | _`string`_ | (none)  | **[REQUIRED]** A GitHub access token with read-write access to the appropriate repository or repositories.                               |
+| `npm-token`      | _`string`_ | (none)  | **[REQUIRED]** An npm access token with read-write access to the appropriate package(s).                                                 |
+| `codecov-token`  | _`string`_ | (none)  | A Codecov token corresponding to the target repository. Not necessary and should be omitted for public repositories.                     |
+| `gpg-pk-armored` | _`string`_ | (none)  | **[REQUIRED]** The [armored GPG private key][5] used for [git signing purposes][6]. This key must correspond to [`committer.email`][23]. |
+| `gpg-passphrase` | _`string`_ | (none)  | **[REQUIRED]** The passphrase that unlocks `gpg-pk-armored`.                                                                             |
 
 This component action always passes
 `{ repository: { ...customRepoOptions, checkoutRef: false }}` to
@@ -582,6 +578,10 @@ information.
 
 [badge-blm]: https://xunn.at/badge-blm 'Join the movement!'
 [link-blm]: https://xunn.at/donate-blm
+[badge-unmaintained]:
+  https://xunn.at/badge-unmaintained
+  'Unfortunately, this project is unmaintained (forks welcome!)'
+[link-unmaintained]: https://unmaintained.tech
 [badge-maintenance]:
   https://img.shields.io/maintenance/active/2023
   'Is this package maintained?'
@@ -607,7 +607,7 @@ information.
 [link-license]:
   https://github.com/Xunnamius/projector-pipeline/blob/main/LICENSE
 [badge-npm]:
-  https://api.ergodark.com/badges/npm-pkg-version/@xunnamius/projector-pipeline
+  https://xunn.at/npm-pkg-version/@xunnamius/projector-pipeline
   'Install this package using npm or yarn!'
 [link-npm]: https://www.npmjs.com/package/@xunnamius/projector-pipeline
 [badge-semantic-release]:
@@ -666,3 +666,7 @@ information.
 [39]: #verify-release
 [40]: #usage-npm-package
 [43]: https://github.com/Xunnamius/projector-pipeline/blob/main/types/global.ts
+[4]: https://github.com/Xunnamius/xpipeline
+[5]: https://www.techopedia.com/definition/23150/ascii-armor
+[6]:
+  https://docs.github.com/en/github/authenticating-to-github/about-commit-signature-verification#about-commit-signature-verification
