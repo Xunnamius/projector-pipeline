@@ -1,13 +1,9 @@
-<!-- prettier-ignore-start -->
-
 <!-- badges-start -->
 
 [![Black Lives Matter!][badge-blm]][link-blm]
 [![!!UNMAINTAINED!!][badge-unmaintained]][link-unmaintained]
 
 <!-- badges-end -->
-
-<!-- prettier-ignore-end -->
 
 # ⛔️ DEPRECATED/UNMAINTAINED
 
@@ -583,7 +579,7 @@ information.
 [badge-unmaintained]:
   https://xunn.at/badge-unmaintained
   'Unfortunately, this project is unmaintained (forks welcome!)'
-[link-unmaintained]: https://unmaintained.tech
+[link-unmaintained]: https://xunn.at/link-unmaintained
 [badge-maintenance]:
   https://img.shields.io/maintenance/active/2023
   'Is this package maintained?'
