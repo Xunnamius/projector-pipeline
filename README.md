@@ -11,8 +11,10 @@
 
 # ⛔️ DEPRECATED
 
-> \[!CAUTION] This project has been superseded (and all of its useful bits
-> subsumed) by [@-xun/pipeline][4].
+> \[!CAUTION]
+>
+> This project has been superseded (and all of its useful bits subsumed) by
+> [@-xun/pipeline][4].
 
 This project contains the collection of component actions powering the CI/CD
 pipeline that undergirds [Projector][2]-based projects. For more details on the
